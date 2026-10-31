@@ -1,5 +1,5 @@
 import pool from '../config/database.js';
-import { getCurrentTimestampString } from '../utils/timestamp.js';
+import { getCurrentTimestampString, getCurrentTimestamp } from '../utils/timestamp.js';
 
 class LoginActivityService {
   // Cache for blocking configuration (refreshed every 5 minutes)
@@ -104,8 +104,8 @@ class LoginActivityService {
     }
 
     // If already blocked, return block info
-    if (currentState.blocked_until && new Date(currentState.blocked_until) > new Date()) {
-      const remainingMinutes = Math.ceil((new Date(currentState.blocked_until) - new Date()) / 60000);
+    if (currentState.blocked_until && new Date(currentState.blocked_until) > getCurrentTimestamp()) {
+      const remainingMinutes = Math.ceil((new Date(currentState.blocked_until) - getCurrentTimestamp()) / 60000);
       return {
         blocked: true,
         level: currentState.level,
@@ -130,7 +130,9 @@ class LoginActivityService {
       const config = blockingConfig[level];
       if (newAttemptCount >= config.maxAttempts) {
         newLevel = level;
-        blockedUntil = new Date(Date.now() + config.blockDuration * 60000);
+        // Use timezone-adjusted time for blockedUntil
+        const now = getCurrentTimestamp();
+        blockedUntil = new Date(now.getTime() + config.blockDuration * 60000);
       }
     }
 
@@ -144,7 +146,7 @@ class LoginActivityService {
     await pool.execute(updateQuery, [newLevel, newAttemptCount, blockedUntil, now, currentState.id]);
 
     if (blockedUntil) {
-      const remainingMinutes = Math.ceil((blockedUntil - new Date()) / 60000);
+      const remainingMinutes = Math.ceil((blockedUntil - getCurrentTimestamp()) / 60000);
       return {
         blocked: true,
         level: newLevel,

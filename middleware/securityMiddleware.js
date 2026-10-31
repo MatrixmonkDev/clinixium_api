@@ -18,7 +18,7 @@ const securityMiddleware = (app) => {
   // CORS configuration
   app.use(cors({
     origin: process.env.NODE_ENV === 'production' 
-      ? ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000'] 
+      ? ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000','https://admin.clinixium.ai','https://dev.clinixium.ai'] 
       : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -5,7 +5,7 @@ import RefreshTokenService from '../../../services/refreshTokenService.js';
 import LoginActivityService from '../../../services/loginActivityService.js';
 import { setRefreshCookie } from '../../../utils/refreshCookie.js';
 import { getRequestInfo } from '../../../utils/requestInfo.js';
-import { getCurrentTimestampString, getCurrentTimestamp } from '../../../utils/timestamp.js';
+import { getCurrentTimestampString } from '../../../utils/timestamp.js';
 
 class PhysicianAuthController {
   // Register - Simple: only email, password, first_name, last_name
