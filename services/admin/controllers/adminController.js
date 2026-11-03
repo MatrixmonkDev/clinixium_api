@@ -1,6 +1,9 @@
 import Admin from '../models/Admin.js';
+import Physician from '../../physicians/models/Physician.js';
+import Developer from '../../developer/models/Developer.js';
 import AuthService from '../../../services/authService.js';
 import LoginActivityService from '../../../services/loginActivityService.js';
+import pool from '../../../config/database.js';
 
 class AdminController {
   static async getProfile(req, res, next) {
@@ -83,6 +86,154 @@ class AdminController {
       const limit = parseInt(req.query.limit) || 20;
 
       const history = await LoginActivityService.getUserLoginHistory('A', adminId, limit);
+
+      res.status(200).json({
+        success: true,
+        data: history,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getPhysiciansList(req, res, next) {
+    try {
+      const { page = 1, limit = 20, search = '', status } = req.query;
+      const offset = (page - 1) * limit;
+
+      let query = `
+        SELECT
+          id, uuid, email, first_name, last_name,
+          phone_country_code, phone_number, professional_title,
+          profile_photo_path, status, created_on
+        FROM physicians
+        WHERE 1=1
+      `;
+      const params = [];
+
+      if (search) {
+        query += ` AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)`;
+        const searchPattern = `%${search}%`;
+        params.push(searchPattern, searchPattern, searchPattern);
+      }
+
+      if (status !== undefined && status !== '') {
+        query += ` AND status = ?`;
+        params.push(status);
+      }
+
+      query += ` ORDER BY created_on DESC LIMIT ? OFFSET ?`;
+      params.push(parseInt(limit), offset);
+
+      const [rows] = await pool.execute(query, params);
+
+      const countQuery = `
+        SELECT COUNT(*) as total FROM physicians WHERE 1=1
+        ${search ? ` AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)` : ''}
+        ${status !== undefined && status !== '' ? ` AND status = ?` : ''}
+      `;
+      const countParams = [];
+      if (search) {
+        const searchPattern = `%${search}%`;
+        countParams.push(searchPattern, searchPattern, searchPattern);
+      }
+      if (status !== undefined && status !== '') {
+        countParams.push(status);
+      }
+
+      const [countRows] = await pool.execute(countQuery, countParams);
+      const total = countRows[0].total;
+
+      res.status(200).json({
+        success: true,
+        data: rows,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getDevelopersList(req, res, next) {
+    try {
+      const { page = 1, limit = 20, search = '', status } = req.query;
+      const offset = (page - 1) * limit;
+
+      let query = `
+        SELECT
+          id, user_id, user_name, user_mname, user_lname,
+          thumbnail, user_email, insert_date, last_login, status
+        FROM developer_mst
+        WHERE 1=1
+      `;
+      const params = [];
+
+      if (search) {
+        query += ` AND (user_name LIKE ? OR user_lname LIKE ? OR user_email LIKE ?)`;
+        const searchPattern = `%${search}%`;
+        params.push(searchPattern, searchPattern, searchPattern);
+      }
+
+      if (status !== undefined && status !== '') {
+        query += ` AND status = ?`;
+        params.push(status);
+      }
+
+      query += ` ORDER BY insert_date DESC LIMIT ? OFFSET ?`;
+      params.push(parseInt(limit), offset);
+
+      const [rows] = await pool.execute(query, params);
+
+      const countQuery = `
+        SELECT COUNT(*) as total FROM developer_mst WHERE 1=1
+        ${search ? ` AND (user_name LIKE ? OR user_lname LIKE ? OR user_email LIKE ?)` : ''}
+        ${status !== undefined && status !== '' ? ` AND status = ?` : ''}
+      `;
+      const countParams = [];
+      if (search) {
+        const searchPattern = `%${search}%`;
+        countParams.push(searchPattern, searchPattern, searchPattern);
+      }
+      if (status !== undefined && status !== '') {
+        countParams.push(status);
+      }
+
+      const [countRows] = await pool.execute(countQuery, countParams);
+      const total = countRows[0].total;
+
+      res.status(200).json({
+        success: true,
+        data: rows,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getUserLoginHistory(req, res, next) {
+    try {
+      const { userType, userId } = req.params;
+      const limit = parseInt(req.query.limit) || 20;
+
+      if (!['A', 'P', 'D'].includes(userType)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid user type. Must be A (Admin), P (Physician), or D (Developer)',
+        });
+      }
+
+      const history = await LoginActivityService.getUserLoginHistory(userType, userId, limit);
 
       res.status(200).json({
         success: true,
