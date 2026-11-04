@@ -60,13 +60,12 @@ const staffRegisterSchema = Joi.object({
 const updateProfileSchema = Joi.object({
   first_name: Joi.string().min(2).max(100),
   last_name: Joi.string().min(2).max(100),
-  phone_country_code: Joi.string().allow('', null),
   phone_number: Joi.string().allow('', null),
+  country_code_id: Joi.number().integer().allow(null),
+  timezone_id: Joi.number().integer().allow(null),
   professional_title: Joi.string().valid('MD', 'DO'),
-  timezone: Joi.string(),
   language: Joi.string(),
   about_me: Joi.string().max(2000),
-  primary_specialty: Joi.string().max(150),
   career_start_year: Joi.number().integer().min(1900).max(new Date().getFullYear()),
   practice_setting: Joi.string().valid('hospital', 'private_practice', 'academic', 'clinic', 'telemedicine', 'other'),
   practice_setting_other: Joi.string().max(150),
@@ -134,19 +133,31 @@ const refreshTokenSchema = Joi.object({
 
 // Onboarding Step 1: Contact Info
 const onboardingStep1Schema = Joi.object({
-  phone_country_code: Joi.string().allow('', null),
-  phone_number: Joi.string().allow('', null),
-  timezone: Joi.string().default('America/New_York'),
-  language: Joi.string().default('en'),
+  // Step 1 is only for Two-Factor Authentication setup
+  // No phone, timezone, or language fields
 });
 
 // Onboarding Step 2: Professional Details
 const onboardingStep2Schema = Joi.object({
+  first_name: Joi.string().min(2).max(100).required(),
+  last_name: Joi.string().min(2).max(100).required(),
+  phone_number: Joi.string().allow('', null),
+  country_code_id: Joi.number().integer().allow(null),
+  timezone_id: Joi.number().integer().allow(null),
   professional_title: Joi.string().valid('MD', 'DO').required(),
-  primary_specialty: Joi.string().max(150).required(),
   career_start_year: Joi.number().integer().min(1900).max(new Date().getFullYear()).required(),
-  practice_setting: Joi.string().valid('hospital', 'private_practice', 'academic', 'clinic', 'telemedicine', 'other').required(),
-  ai_annotation_experience: Joi.string().valid('none', 'some', 'moderate', 'expert').required(),
+  primary_department_id: Joi.number().integer().allow(null),
+  category_ids: Joi.array().items(Joi.number().integer()).allow(null),
+  sub_sub_category_ids: Joi.array().items(Joi.number().integer()).allow(null),
+  practice_setting_ids: Joi.array().items(Joi.number().integer()).allow(null),
+  imaging_modalities: Joi.array().items(
+    Joi.object({
+      imaging_modality_id: Joi.number().integer().allow(null),
+      other_modality: Joi.string().allow('', null),
+    }).or('imaging_modality_id', 'other_modality')
+  ).allow(null),
+  ai_annotation_experience_id: Joi.number().integer().allow(null),
+  profile_photo_upload_id: Joi.number().integer().allow(null),
 });
 
 // Onboarding Step 3: Hospital Affiliation

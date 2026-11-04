@@ -44,7 +44,7 @@ router.get('/onboarding/progress', authMiddleware(['physician']), PhysicianAuthC
 router.post('/onboarding/step1', authMiddleware(['physician']), validate(onboardingStep1Schema), PhysicianAuthController.completeStep1);
 
 // Step 2: Professional Details
-router.post('/onboarding/step2', authMiddleware(['physician']), validate(onboardingStep2Schema), PhysicianAuthController.completeStep2);
+router.post('/onboarding/step2', authMiddleware(['physician']), PhysicianAuthController.completeStep2);
 
 // Step 3: Hospital Affiliation
 router.post('/onboarding/step3', authMiddleware(['physician']), validate(onboardingStep3Schema), PhysicianAuthController.completeStep3);

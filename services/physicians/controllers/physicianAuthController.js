@@ -1,4 +1,9 @@
 import Physician from '../models/Physician.js';
+import PhysicianDepartment from '../models/PhysicianDepartment.js';
+import PhysicianCategory from '../models/PhysicianCategory.js';
+import PhysicianPracticeSetting from '../models/PhysicianPracticeSetting.js';
+import PhysicianImagingModality from '../models/PhysicianImagingModality.js';
+import PhysicianAIExperience from '../models/PhysicianAIExperience.js';
 import AuthService from '../../../services/authService.js';
 import TwoFactorService from '../../../services/twoFactorService.js';
 import RefreshTokenService from '../../../services/refreshTokenService.js';
@@ -6,6 +11,7 @@ import LoginActivityService from '../../../services/loginActivityService.js';
 import { setRefreshCookie } from '../../../utils/refreshCookie.js';
 import { getRequestInfo } from '../../../utils/requestInfo.js';
 import { getCurrentTimestampString } from '../../../utils/timestamp.js';
+import pool from '../../../config/database.js';
 
 class PhysicianAuthController {
   // Register - Simple: only email, password, first_name, last_name
@@ -33,7 +39,6 @@ class PhysicianAuthController {
         first_name,
         last_name,
         professional_title: 'MD',
-        timezone: 'America/New_York',
         language: 'en',
       });
 
@@ -125,7 +130,7 @@ class PhysicianAuthController {
 
         return res.status(200).json({
           success: true,
-          requiresTwoFactor: true,
+          two_factor_enabled: 1,
           message: 'Two-factor authentication required',
           data: { tempToken },
         });
@@ -149,6 +154,7 @@ class PhysicianAuthController {
 
       res.status(200).json({
         success: true,
+        two_factor_enabled: 0,
         message: 'Login successful',
         data: {
           accessToken,
@@ -158,7 +164,6 @@ class PhysicianAuthController {
             email: physician.email,
             first_name: physician.first_name,
             last_name: physician.last_name,
-            two_factor_enabled: physician.two_factor_enabled,
           },
         },
       });
@@ -178,6 +183,15 @@ class PhysicianAuthController {
         return res.status(404).json({
           success: false,
           message: 'Physician not found',
+        });
+      }
+
+      //console.log('physician found', physician);
+
+      if (!physician.two_factor_secret) {
+        return res.status(400).json({
+          success: false,
+          message: 'Two-factor authentication is not enabled for this account',
         });
       }
 
@@ -225,6 +239,7 @@ class PhysicianAuthController {
 
       res.status(200).json({
         success: true,
+        two_factor_enabled: 1,
         message: 'Two-factor verification successful',
         data: {
           accessToken,
@@ -234,7 +249,6 @@ class PhysicianAuthController {
             email: physician.email,
             first_name: physician.first_name,
             last_name: physician.last_name,
-            two_factor_enabled: physician.two_factor_enabled,
           },
         },
       });
@@ -333,8 +347,8 @@ class PhysicianAuthController {
           completed: !!physician.first_name && !!physician.last_name && !!physician.email,
         },
         step2: {
-          title: 'Professional Details',
-          completed: !!physician.professional_title && !!physician.primary_specialty,
+          title: 'Clinical Profile',
+          completed: !!physician.first_name && !!physician.last_name && !!physician.professional_title,
         },
         step3: {
           title: 'Hospital Affiliation',
@@ -379,13 +393,12 @@ class PhysicianAuthController {
   static async completeStep1(req, res, next) {
     try {
       const physicianId = req.user.id;
-      const { phone_country_code, phone_number, timezone, language } = req.body;
+
+      // Step 1 is only for Two-Factor Authentication setup
+      // No phone number, timezone, or language here
+      // Only update onboarding step to 2 after 2FA is enabled
 
       await Physician.update(physicianId, {
-        phone_country_code,
-        phone_number,
-        timezone,
-        language,
         onboarding_step: 2,
       });
 
@@ -402,18 +415,133 @@ class PhysicianAuthController {
   }
 
   static async completeStep2(req, res, next) {
+    const connection = await pool.getConnection();
     try {
-      const physicianId = req.user.id;
-      const { professional_title, primary_specialty, career_start_year, practice_setting, ai_annotation_experience } = req.body;
+      await connection.beginTransaction();
 
-      await Physician.update(physicianId, {
+      const physicianId = req.user.id;
+      const {
+        first_name,
+        last_name,
+        phone_number,
+        country_code_id,
+        timezone_id,
         professional_title,
-        primary_specialty,
         career_start_year,
-        practice_setting,
-        ai_annotation_experience,
-        onboarding_step: 3,
-      });
+        primary_department_id,
+        category_ids,
+        sub_sub_category_ids,
+        practice_setting_ids,
+        imaging_modalities,
+        ai_annotation_experience_id,
+        profile_photo_upload_id
+      } = req.body;
+
+      const now = getCurrentTimestampString();
+
+      // Update physician basic info (all dropdown fields store IDs)
+      const updatePhysicianQuery = `
+        UPDATE physicians
+        SET first_name = ?, last_name = ?, phone_number = ?,
+            country_code_id = ?, timezone_id = ?, professional_title = ?, career_start_year = ?, onboarding_step = 3
+        WHERE id = ?
+      `;
+      await connection.execute(updatePhysicianQuery, [
+        first_name,
+        last_name,
+        phone_number,
+        country_code_id,
+        timezone_id,
+        professional_title,
+        career_start_year,
+        physicianId
+      ]);
+
+      // Update profile photo if provided
+      if (profile_photo_upload_id) {
+        const updatePhotoQuery = `
+          UPDATE physicians
+          SET profile_photo_path = (SELECT url FROM user_uploads WHERE id = ?)
+          WHERE id = ?
+        `;
+        await connection.execute(updatePhotoQuery, [profile_photo_upload_id, physicianId]);
+      }
+
+      // Delete existing departments, categories, practice settings, imaging modalities, AI experiences
+      await connection.execute('DELETE FROM physician_departments WHERE physician_id = ?', [physicianId]);
+      await connection.execute('DELETE FROM physician_categories WHERE physician_id = ?', [physicianId]);
+      await connection.execute('DELETE FROM physician_practice_settings WHERE physician_id = ?', [physicianId]);
+      await connection.execute('DELETE FROM physician_imaging_modalities WHERE physician_id = ?', [physicianId]);
+      await connection.execute('DELETE FROM physician_ai_experiences WHERE physician_id = ?', [physicianId]);
+
+      // Insert primary department (stores medical_department_id)
+      if (primary_department_id) {
+        const deptQuery = `
+          INSERT INTO physician_departments (physician_id, medical_department_id, is_primary, created_at)
+          VALUES (?, ?, 1, ?)
+        `;
+        await connection.execute(deptQuery, [physicianId, primary_department_id, now]);
+      }
+
+      // Insert categories (sub-specialties - stores medical_category_id)
+      if (category_ids && Array.isArray(category_ids) && category_ids.length > 0) {
+        for (const categoryId of category_ids) {
+          const catQuery = `
+            INSERT INTO physician_categories (physician_id, medical_category_id, created_at)
+            VALUES (?, ?, ?)
+          `;
+          await connection.execute(catQuery, [physicianId, categoryId, now]);
+        }
+      }
+
+      // Insert sub-sub-categories (children of selected sub-specialties - stores medical_category_id)
+      if (sub_sub_category_ids && Array.isArray(sub_sub_category_ids) && sub_sub_category_ids.length > 0) {
+        for (const subSubCategoryId of sub_sub_category_ids) {
+          const subSubCatQuery = `
+            INSERT INTO physician_categories (physician_id, medical_category_id, created_at)
+            VALUES (?, ?, ?)
+          `;
+          await connection.execute(subSubCatQuery, [physicianId, subSubCategoryId, now]);
+        }
+      }
+
+      // Insert practice settings (stores practice_setting_id)
+      if (practice_setting_ids && Array.isArray(practice_setting_ids) && practice_setting_ids.length > 0) {
+        for (const settingId of practice_setting_ids) {
+          const settingQuery = `
+            INSERT INTO physician_practice_settings (physician_id, practice_setting_id, created_at)
+            VALUES (?, ?, ?)
+          `;
+          await connection.execute(settingQuery, [physicianId, settingId, now]);
+        }
+      }
+
+      // Insert imaging modalities (stores imaging_modality_id for dropdown, custom text for others)
+      if (imaging_modalities && Array.isArray(imaging_modalities) && imaging_modalities.length > 0) {
+        for (const modality of imaging_modalities) {
+          const modalityQuery = `
+            INSERT INTO physician_imaging_modalities (physician_id, imaging_modality_id, other_modality, created_at)
+            VALUES (?, ?, ?, ?)
+          `;
+          await connection.execute(modalityQuery, [
+            physicianId,
+            modality.imaging_modality_id || null,
+            modality.other_modality || null,
+            now
+          ]);
+        }
+      }
+
+      // Insert AI annotation experience (stores ai_annotation_experience_id)
+      if (ai_annotation_experience_id) {
+        const aiQuery = `
+          INSERT INTO physician_ai_experiences (physician_id, ai_annotation_experience_id, created_at)
+          VALUES (?, ?, ?)
+        `;
+        await connection.execute(aiQuery, [physicianId, ai_annotation_experience_id, now]);
+      }
+
+      await connection.commit();
 
       const physician = await Physician.getPublicProfile(physicianId);
 
@@ -423,7 +551,10 @@ class PhysicianAuthController {
         data: physician,
       });
     } catch (error) {
+      await connection.rollback();
       next(error);
+    } finally {
+      connection.release();
     }
   }
 

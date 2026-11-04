@@ -127,6 +127,7 @@ class AdminAuthController {
 
       res.status(200).json({
         success: true,
+        two_factor_enabled: 0,
         message: 'Login successful',
         data: {
           accessToken,

@@ -1,0 +1,23 @@
+-- Seed Data for Country Codes
+INSERT INTO country_codes (code, name, dial_code) VALUES
+('US', 'United States', '+1'),
+('UK', 'United Kingdom', '+44'),
+('IN', 'India', '+91'),
+('CA', 'Canada', '+1'),
+('AU', 'Australia', '+61'),
+('DE', 'Germany', '+49'),
+('FR', 'France', '+33'),
+('JP', 'Japan', '+81'),
+('CN', 'China', '+86'),
+('BR', 'Brazil', '+55'),
+('MX', 'Mexico', '+52'),
+('IT', 'Italy', '+39'),
+('ES', 'Spain', '+34'),
+('RU', 'Russia', '+7'),
+('KR', 'South Korea', '+82'),
+('SG', 'Singapore', '+65'),
+('AE', 'United Arab Emirates', '+971'),
+('SA', 'Saudi Arabia', '+966'),
+('ZA', 'South Africa', '+27'),
+('NG', 'Nigeria', '+234'),
+('EG', 'Egypt', '+20');

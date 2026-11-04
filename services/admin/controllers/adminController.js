@@ -104,7 +104,7 @@ class AdminController {
       let query = `
         SELECT
           id, uuid, email, first_name, last_name,
-          phone_country_code, phone_number, professional_title,
+          phone_number, country_code_id, professional_title,
           profile_photo_path, status, created_on
         FROM physicians
         WHERE 1=1
