@@ -9,4 +9,5 @@ INSERT INTO doc_types (name, description, category) VALUES
 ('Signature', 'Electronic signature', 'compliance'),
 ('BAA Document', 'Business Associate Agreement', 'compliance'),
 ('NDA Document', 'Non-Disclosure Agreement', 'compliance'),
-('HIPAA Training', 'HIPAA training certificate', 'compliance');
+('HIPAA Training', 'HIPAA training certificate', 'compliance'),
+('Terms of Service', 'Platform Terms of Service agreement', 'compliance');

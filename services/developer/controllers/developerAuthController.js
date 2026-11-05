@@ -2,6 +2,7 @@ import Developer from '../models/Developer.js';
 import AuthService from '../../../services/authService.js';
 import RefreshTokenService from '../../../services/refreshTokenService.js';
 import LoginActivityService from '../../../services/loginActivityService.js';
+import TwoFactorService from '../../../services/twoFactorService.js';
 import { setRefreshCookie } from '../../../utils/refreshCookie.js';
 import { getRequestInfo } from '../../../utils/requestInfo.js';
 import { getCurrentTimestampString } from '../../../utils/timestamp.js';
@@ -110,6 +111,23 @@ class DeveloperAuthController {
         });
       }
 
+      if (developer.two_factor_enabled) {
+        const tempToken = AuthService.generateToken({
+          id: developer.id,
+          userId: developer.user_id,
+          email: developer.user_email,
+          userType: 'developer',
+          twoFactorPending: true,
+        }, '5m');
+
+        return res.status(200).json({
+          success: true,
+          two_factor_enabled: 1,
+          message: 'Two-factor authentication required',
+          data: { tempToken },
+        });
+      }
+
       await Developer.update(developer.id, { last_login: getCurrentTimestampString() });
 
       const accessToken = AuthService.generateAccessToken({
@@ -141,6 +159,166 @@ class DeveloperAuthController {
             user_email: developer.user_email,
           },
         },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async verifyTwoFactor(req, res, next) {
+    try {
+      const { two_factor_code } = req.body;
+      const developerId = req.user.id;
+      const { ip, browser } = getRequestInfo(req);
+
+      const developer = await Developer.findById(developerId);
+      if (!developer) {
+        return res.status(404).json({
+          success: false,
+          message: 'Developer not found',
+        });
+      }
+
+      if (!developer.two_factor_secret) {
+        return res.status(400).json({
+          success: false,
+          message: 'Two-factor authentication is not enabled for this account',
+        });
+      }
+
+      const isValid = TwoFactorService.verifyToken(
+        developer.two_factor_secret.toString('utf8'),
+        two_factor_code
+      );
+
+      if (!isValid) {
+        await LoginActivityService.logLoginAttempt('D', developerId, ip, browser, 'failed', 'Invalid 2FA code');
+        const blockStatus = await LoginActivityService.checkAndHandleFailedAttempt('D', developerId, ip);
+
+        if (blockStatus.blocked) {
+          return res.status(423).json({
+            success: false,
+            message: 'Account temporarily blocked due to multiple failed 2FA attempts',
+            blocked: true,
+            blockLevel: blockStatus.level,
+            blockedUntil: blockStatus.blockedUntil,
+            remainingTime: blockStatus.remainingTime,
+          });
+        }
+
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid two-factor code',
+        });
+      }
+
+      await Developer.update(developer.id, { last_login: getCurrentTimestampString() });
+
+      const accessToken = AuthService.generateAccessToken({
+        id: developer.id,
+        userId: developer.user_id,
+        email: developer.user_email,
+        userType: 'developer',
+      });
+
+      const refreshToken = await RefreshTokenService.generateRefreshToken(developerId, 'developer');
+      setRefreshCookie(res, refreshToken);
+
+      await LoginActivityService.logLoginAttempt('D', developerId, ip, browser, 'success');
+      await LoginActivityService.resetLoginAttempts('D', developerId, ip);
+
+      res.status(200).json({
+        success: true,
+        two_factor_enabled: 1,
+        message: 'Two-factor verification successful',
+        data: {
+          accessToken,
+          developer: {
+            id: developer.id,
+            userId: developer.user_id,
+            user_name: developer.user_name,
+            user_mname: developer.user_mname,
+            user_lname: developer.user_lname,
+            thumbnail: developer.thumbnail,
+            user_email: developer.user_email,
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async setupTwoFactor(req, res, next) {
+    try {
+      const developerId = req.user.id;
+
+      const secret = TwoFactorService.generateSecret();
+      const qrCode = await TwoFactorService.generateQRCode(secret);
+      const recoveryCodes = TwoFactorService.generateRecoveryCodes();
+
+      res.status(200).json({
+        success: true,
+        message: 'Two-factor setup initiated',
+        data: {
+          secret: secret.base32,
+          qrCode,
+          recoveryCodes,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async confirmTwoFactor(req, res, next) {
+    try {
+      const { secret, two_factor_code } = req.body;
+      const developerId = req.user.id;
+
+      const isValid = TwoFactorService.verifyToken(secret, two_factor_code);
+
+      if (!isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid two-factor code',
+        });
+      }
+
+      const recoveryCodes = TwoFactorService.generateRecoveryCodes();
+
+      await Developer.updateTwoFactor(developerId, {
+        two_factor_enabled: true,
+        two_factor_method: 'authenticator',
+        two_factor_secret: Buffer.from(secret, 'utf8'),
+        two_factor_recovery_codes: JSON.stringify(recoveryCodes),
+        two_factor_confirmed_at: getCurrentTimestampString(),
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Two-factor authentication enabled',
+        data: { recoveryCodes },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async disableTwoFactor(req, res, next) {
+    try {
+      const developerId = req.user.id;
+
+      await Developer.updateTwoFactor(developerId, {
+        two_factor_enabled: false,
+        two_factor_secret: null,
+        two_factor_recovery_codes: null,
+        two_factor_confirmed_at: null,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Two-factor authentication disabled',
       });
     } catch (error) {
       next(error);

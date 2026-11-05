@@ -1,3 +1,679 @@
+# Clinixium API Documentation
+
+## Overview
+This documentation covers all APIs for the Clinixium platform, including admin management, physician onboarding, and shared services.
+
+---
+
+# Physician Onboarding APIs
+
+## Overview
+Physician onboarding is a multi-step process that collects essential information for medical professionals.
+
+---
+
+## Step 1: Two-Factor Authentication Setup
+
+### Complete Step 1
+```
+POST /api/physicians/auth/onboarding/step1
+```
+**Auth:** Bearer Token (Physician)
+**Description:** Completes Step 1 after 2FA is enabled.
+
+**Request Body:** None
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Step 1 completed",
+  "data": {
+    "id": 1,
+    "email": "physician@example.com",
+    "onboarding_step": 2,
+    "two_factor_enabled": 1
+  }
+}
+```
+
+**Error Response (2FA not enabled):**
+```json
+{
+  "success": false,
+  "message": "Two-factor authentication must be enabled before completing Step 1"
+}
+```
+
+---
+
+## Step 2: Clinical Profile
+
+### Complete Step 2
+```
+POST /api/physicians/auth/onboarding/step2
+```
+**Auth:** Bearer Token (Physician)
+**Description:** Submits clinical profile information including personal details, professional title, department, categories, practice settings, imaging modalities, and AI experience.
+
+**Request Body:**
+```json
+{
+  "first_name": "Emily",
+  "last_name": "Carter",
+  "phone_number": "4155550187",
+  "country_code_id": 1,
+  "timezone_id": 1,
+  "professional_title": "MD",
+  "career_start_year": 2016,
+  "primary_department_id": 1,
+  "category_ids": [1, 2, 3],
+  "sub_sub_category_ids": [4, 5, 6],
+  "practice_setting_ids": [1],
+  "imaging_modalities": [
+    { "imaging_modality_id": 1 },
+    { "imaging_modality_id": 2 },
+    { "other_modality": "PET Scan" }
+  ],
+  "ai_annotation_experience_id": 1,
+  "profile_photo_upload_id": 1
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Step 2 completed",
+  "data": {
+    "id": 1,
+    "first_name": "Emily",
+    "last_name": "Carter",
+    "onboarding_step": 3
+  }
+}
+```
+
+---
+
+## Step 3: Medical Credentials Verification
+
+### Complete Step 3
+```
+POST /api/physicians/auth/onboarding/step3
+```
+**Auth:** Bearer Token (Physician)
+**Description:** Submits NPI number, board certification status, multiple state medical licenses, and document uploads.
+
+**Request Body:**
+```json
+{
+  "npi_number": "1234567890",
+  "medical_licenses": [
+    {
+      "license_number": "MD12345",
+      "state": "California",
+      "expiry_date": "2025-12-31"
+    },
+    {
+      "license_number": "MD67890",
+      "state": "New York",
+      "expiry_date": "2026-06-30"
+    }
+  ],
+  "medical_license_upload_ids": [10, 11, 12],
+  "board_certification_upload_ids": [13, 14]
+}
+```
+
+**Field Descriptions:**
+- `npi_number`: 10-digit NPI number (verification not implemented yet)
+- `medical_licenses`: Array of medical license objects with license number, state, and expiry date
+- `medical_license_upload_ids`: Array of upload IDs from user_uploads table (doc_type_id = 3)
+- `board_certification_upload_ids`: Array of upload IDs from user_uploads table (doc_type_id = 5)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Step 3 completed",
+  "data": {
+    "id": 1,
+    "npi_number": "1234567890",
+    "onboarding_step": 4
+  }
+}
+```
+
+**Error Response (Invalid upload ID):**
+```json
+{
+  "success": false,
+  "message": "Invalid medical license upload ID or access denied"
+}
+```
+
+---
+
+## Step 4: Identity Verification
+
+### Complete Step 4
+```
+POST /api/physicians/auth/onboarding/step4
+```
+**Auth:** Bearer Token (Physician)
+**Description:** Submits identity verification documents (government ID and selfie). Status is set to 'pending' for admin review.
+
+**Prerequisites:**
+1. Upload government ID document(s) via `POST /api/uploads` with `doc_type_id = 1`
+2. Upload selfie photo via `POST /api/uploads` with `doc_type_id = 2`
+
+**Request Body:**
+```json
+{
+  "identity_document_upload_ids": [20, 21],
+  "selfie_upload_id": 22
+}
+```
+
+**Field Descriptions:**
+- `identity_document_upload_ids`: Array of upload IDs for government ID documents (doc_type_id = 1)
+- `selfie_upload_id`: Upload ID for selfie photo (doc_type_id = 2)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Step 4 completed - Identity verification pending review",
+  "data": {
+    "id": 1,
+    "identity_status": "pending",
+    "identity_provider": "manual",
+    "onboarding_step": 5
+  }
+}
+```
+
+**Error Response (Invalid upload ID):**
+```json
+{
+  "success": false,
+  "message": "Invalid identity document upload ID or access denied"
+}
+```
+
+---
+
+## Step 5: Compliance
+
+### Complete Step 5
+```
+POST /api/physicians/auth/onboarding/step5
+```
+**Auth:** Bearer Token (Physician)
+**Description:** Completes the compliance step by agreeing to all required documents, disclosing conflict of interest, and providing electronic signature.
+
+**Prerequisites:**
+1. Upload electronic signature image via `POST /api/uploads` with `doc_type_id = 7`
+
+**Request Body:**
+```json
+{
+  "agreed_document_ids": [8, 9, 10, 11],
+  "conflict_of_interest": false,
+  "conflict_of_interest_details": null,
+  "signature_upload_id": 30
+}
+```
+
+**Field Descriptions:**
+- `agreed_document_ids`: Array of document type IDs for agreed documents (must include all: 8=BAA, 9=NDA, 10=HIPAA, 11=Terms of Service)
+- `conflict_of_interest`: Boolean indicating if there's a conflict of interest
+- `conflict_of_interest_details`: Required if `conflict_of_interest` is true, optional otherwise
+- `signature_upload_id`: Upload ID for electronic signature image (doc_type_id = 7)
+
+**Request Body (with conflict of interest):**
+```json
+{
+  "agreed_document_ids": [8, 9, 10, 11],
+  "conflict_of_interest": true,
+  "conflict_of_interest_details": "I have a financial interest in a medical device company",
+  "signature_upload_id": 30
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Step 5 completed - Compliance documents agreed",
+  "data": {
+    "id": 1,
+    "conflict_of_interest": 0,
+    "conflict_of_interest_details": null,
+    "compliance_completed_at": "2026-11-05 10:00:00",
+    "onboarding_step": 6
+  }
+}
+```
+
+**Error Response (Missing documents):**
+```json
+{
+  "success": false,
+  "message": "You must agree to all compliance documents"
+}
+```
+
+**Error Response (Invalid signature):**
+```json
+{
+  "success": false,
+  "message": "Invalid signature upload ID or access denied"
+}
+```
+
+---
+
+## Step 6: Final Completion
+
+### Complete Step 6
+```
+POST /api/physicians/auth/onboarding/step6
+```
+**Auth:** Bearer Token (Physician)
+**Description:** Final step to complete the onboarding process. Marked as complete when all previous steps are done.
+
+**Request Body:** None
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Onboarding completed",
+  "data": {
+    "id": 1,
+    "onboarding_step": 7,
+    "onboarding_completed_at": "2026-11-05 10:00:00"
+  }
+}
+```
+
+---
+
+## Onboarding Progress
+
+### Get Onboarding Progress
+```
+GET /api/physicians/auth/onboarding/progress
+```
+**Auth:** Bearer Token (Physician)
+**Description:** Returns the current onboarding progress with enhanced data validation checks for each step.
+
+**Step Completion Logic:**
+- **Step 1:** Two-factor enabled and secret exists
+- **Step 2:** First name, last name, and professional title exist
+- **Step 3:** NPI number exists and at least one medical license
+- **Step 4:** Identity status is 'pending' or 'verified'
+- **Step 5:** Compliance completed and conflict of interest is set
+- **Step 6:** Onboarding step >= 7 and completion timestamp exists
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "currentStep": 3,
+    "isCompleted": false,
+    "completedSteps": 2,
+    "totalSteps": 6,
+    "progressPercentage": 33,
+    "onboardingCompletedAt": null,
+    "steps": {
+      "step1": {
+        "title": "Two-Factor Authentication",
+        "completed": true
+      },
+      "step2": {
+        "title": "Clinical Profile",
+        "completed": true
+      },
+      "step3": {
+        "title": "Medical Credentials Verification",
+        "completed": false
+      },
+      "step4": {
+        "title": "Identity Verification",
+        "completed": false
+      },
+      "step5": {
+        "title": "Compliance",
+        "completed": false
+      },
+      "step6": {
+        "title": "Final Completion",
+        "completed": false
+      }
+    }
+  }
+}
+```
+
+---
+
+## Get All Onboarding Data
+
+### Get Onboarding Data
+```
+GET /api/physicians/auth/onboarding/data
+```
+**Auth:** Bearer Token (Physician)
+**Description:** Returns comprehensive data from all onboarding steps in a single response, including documents with full URLs.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "step1": {
+      "two_factor_enabled": 1,
+      "two_factor_method": "app",
+      "two_factor_confirmed_at": "2026-11-05 10:00:00"
+    },
+    "step2": {
+      "first_name": "Emily",
+      "last_name": "Carter",
+      "phone_number": "4155550187",
+      "country_code_id": 1,
+      "country_code": "+1",
+      "country_name": "United States",
+      "timezone_id": 1,
+      "timezone_name": "America/New_York",
+      "timezone_offset": "-05:00",
+      "professional_title": "MD",
+      "career_start_year": 2016,
+      "profile_photo_path": "/uploads/...",
+      "profile_photo": "http://localhost:3000/uploads/...",
+      "departments": [
+        {
+          "id": 1,
+          "is_primary": 1,
+          "department_id": 1,
+          "department_name": "Cardiology"
+        }
+      ],
+      "categories": [
+        {
+          "id": 1,
+          "category_id": 1,
+          "category_name": "Interventional Cardiology",
+          "parent_id": null
+        }
+      ],
+      "practice_settings": [
+        {
+          "id": 1,
+          "practice_setting_id": 1,
+          "practice_setting_name": "Hospital",
+          "other_value": null
+        }
+      ],
+      "imaging_modalities": [
+        {
+          "id": 1,
+          "imaging_modality_id": 1,
+          "other_modality": null,
+          "modality_name": "MRI"
+        }
+      ],
+      "ai_experience": {
+        "id": 1,
+        "ai_experience_id": 1,
+        "ai_experience_name": "Expert"
+      }
+    },
+    "step3": {
+      "npi_number": "1234567890",
+      "medical_licenses": [
+        {
+          "id": 1,
+          "physician_id": 1,
+          "license_number": "MD12345",
+          "state": "California",
+          "expiry_date": "2025-12-31",
+          "status": 1,
+          "created_at": "2026-11-05 10:00:00"
+        }
+      ],
+      "medical_license_documents": [
+        {
+          "id": 10,
+          "url": "http://localhost:3000/uploads/license.pdf",
+          "file_name": "license.pdf",
+          "file_size": 2048000,
+          "mime_type": "application/pdf",
+          "created_at": "2026-11-05 10:00:00"
+        }
+      ],
+      "board_certification_documents": [
+        {
+          "id": 13,
+          "url": "http://localhost:3000/uploads/board-cert.pdf",
+          "file_name": "board-cert.pdf",
+          "file_size": 1024000,
+          "mime_type": "application/pdf",
+          "created_at": "2026-11-05 10:00:00"
+        }
+      ]
+    },
+    "step4": {
+      "identity_status": "pending",
+      "identity_provider": "manual",
+      "identity_session_id": null,
+      "identity_verified_at": null,
+      "identity_documents": [
+        {
+          "id": 20,
+          "url": "http://localhost:3000/uploads/id-front.jpg",
+          "file_name": "id-front.jpg",
+          "file_size": 512000,
+          "mime_type": "image/jpeg",
+          "created_at": "2026-11-05 10:00:00"
+        }
+      ],
+      "selfie_document": {
+        "id": 22,
+        "url": "http://localhost:3000/uploads/selfie.jpg",
+        "file_name": "selfie.jpg",
+        "file_size": 384000,
+        "mime_type": "image/jpeg",
+        "created_at": "2026-11-05 10:00:00"
+      }
+    },
+    "step5": {
+      "compliance_completed_at": "2026-11-05 10:00:00",
+      "conflict_of_interest": 0,
+      "conflict_of_interest_details": null,
+      "compliance_documents": [
+        {
+          "id": 1,
+          "physician_id": 1,
+          "doc_type_id": 8,
+          "agreed_at": "2026-11-05 10:00:00",
+          "signature_upload_id": 30,
+          "document_name": "BAA Document",
+          "document_description": "Business Associate Agreement",
+          "signature_url": "http://localhost:3000/uploads/signature.png"
+        }
+      ]
+    },
+    "step6": {
+      "onboarding_completed_at": null
+    }
+  }
+}
+```
+
+---
+
+# File Upload APIs
+
+## Overview
+Upload APIs allow physicians, admins, and developers to upload files with document type categorization.
+
+---
+
+## Upload File
+
+### Upload File
+```
+POST /api/uploads
+```
+**Auth:** Bearer Token (Physician, Admin, or Developer)
+**Content-Type:** multipart/form-data
+**Description:** Uploads a file and stores it with document type metadata.
+
+**Request Body (multipart/form-data):**
+- `file`: Binary file (JPG, PNG, PDF, Word documents up to 5MB)
+- `doc_type_id`: Integer ID from doc_types table
+- `description`: Optional text description
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "File uploaded successfully",
+  "data": {
+    "id": 1,
+    "url": "http://localhost:3000/uploads/1793787196949-367911582.jpg",
+    "file_name": "profile-photo.jpg",
+    "file_size": 1024000,
+    "mime_type": "image/jpeg"
+  }
+}
+```
+
+**Error Response (Invalid file type):**
+```json
+{
+  "success": false,
+  "message": "Invalid file type. Only JPG, PNG, PDF, and Word documents are allowed."
+}
+```
+
+**Error Response (File too large):**
+```json
+{
+  "success": false,
+  "message": "File size exceeds 5MB limit"
+}
+```
+
+---
+
+## Get All Uploads
+
+### Get User Uploads
+```
+GET /api/uploads
+```
+**Auth:** Bearer Token (Physician, Admin, or Developer)
+**Description:** Returns all files uploaded by the authenticated user.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "user_type": "P",
+      "doc_type_id": 3,
+      "url": "http://localhost:3000/uploads/1793787196949-367911582.jpg",
+      "file_name": "license.pdf",
+      "file_size": 2048000,
+      "mime_type": "application/pdf",
+      "storage_provider": "local",
+      "description": "Medical License",
+      "is_verified": 0,
+      "status": 1,
+      "created_at": "2026-11-05 10:00:00"
+    }
+  ]
+}
+```
+
+---
+
+## Get Upload by ID
+
+### Get Upload Details
+```
+GET /api/uploads/:id
+```
+**Auth:** Bearer Token (Physician, Admin, or Developer)
+**Description:** Returns details of a specific upload. Only accessible by the file owner.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "user_id": 1,
+    "user_type": "P",
+    "doc_type_id": 3,
+    "url": "http://localhost:3000/uploads/1793787196949-367911582.jpg",
+    "file_name": "license.pdf",
+    "file_size": 2048000,
+    "mime_type": "application/pdf",
+    "storage_provider": "local",
+    "description": "Medical License",
+    "is_verified": 0,
+    "status": 1,
+    "created_at": "2026-11-05 10:00:00"
+  }
+}
+```
+
+**Error Response (Access denied):**
+```json
+{
+  "success": false,
+  "message": "Access denied"
+}
+```
+
+---
+
+## Delete Upload
+
+### Delete File
+```
+DELETE /api/uploads/:id
+```
+**Auth:** Bearer Token (Physician, Admin, or Developer)
+**Description:** Deletes a file upload. Only accessible by the file owner. Removes both database record and physical file.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "File deleted successfully"
+}
+```
+
+**Error Response (Access denied):**
+```json
+{
+  "success": false,
+  "message": "Access denied"
+}
+```
+
+---
+
 # Admin Onboarding APIs Documentation
 
 ## Overview
@@ -484,4 +1160,23 @@ These tables are fixed and seeded via SQL migrations:
 | Practice Settings | 5 | ✅ | Practice setting options |
 | Imaging Modalities | 5 | ✅ | Imaging modality options |
 | AI Annotation Experiences | 5 | ✅ | AI experience levels |
-| **Total** | **28** | ✅ | Complete admin management |
+| **Admin Total** | **28** | ✅ | Complete admin management |
+
+### Physician APIs
+
+|| Resource | Endpoints | Purpose |
+||----------|-----------|---------|
+|| Onboarding Steps | 6 | Multi-step physician onboarding |
+|| Onboarding Progress | 1 | Track onboarding completion with data validation |
+|| Onboarding Data | 1 | Get all onboarding data in single response |
+|| **Physician Total** | **8** | Complete physician onboarding |
+
+### Shared APIs
+
+|| Resource | Endpoints | Purpose |
+||----------|-----------|---------|
+|| File Uploads | 4 | Upload, view, delete files |
+|| Options | 11 | Public dropdown data |
+|| **Shared Total** | **15** | File management & options |
+
+### Grand Total: **51 APIs**

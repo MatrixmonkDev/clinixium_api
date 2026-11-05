@@ -139,12 +139,14 @@ class UploadController {
 
       const uploadId = await UserUpload.create(uploadData);
 
+      const fullUrl = `${process.env.BASE_URL}${uploadData.url}`;
+
       res.status(201).json({
         success: true,
         message: 'File uploaded successfully',
         data: {
           id: uploadId,
-          url: uploadData.url,
+          url: fullUrl,
           file_name: uploadData.file_name,
           file_size: uploadData.file_size,
           mime_type: uploadData.mime_type,
@@ -166,9 +168,15 @@ class UploadController {
 
       const uploads = await UserUpload.findByUser(userId, userType);
 
+      // Add full URL to each upload
+      const uploadsWithFullUrl = uploads.map(upload => ({
+        ...upload,
+        url: `${process.env.BASE_URL}${upload.url}`,
+      }));
+
       res.status(200).json({
         success: true,
-        data: uploads,
+        data: uploadsWithFullUrl,
       });
     } catch (error) {
       next(error);
@@ -197,6 +205,9 @@ class UploadController {
           message: 'Access denied',
         });
       }
+
+      // Add full URL
+      upload.url = `${process.env.BASE_URL}${upload.url}`;
 
       res.status(200).json({
         success: true,

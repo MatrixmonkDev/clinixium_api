@@ -37,25 +37,28 @@ router.post('/2fa/disable', authMiddleware(['physician']), PhysicianAuthControll
 
 // ============ ONBOARDING ============
 
-// Get onboarding progress
+// Get onboarding progress (with enhanced data validation checks)
 router.get('/onboarding/progress', authMiddleware(['physician']), PhysicianAuthController.getOnboardingProgress);
 
-// Step 1: Contact Info
+// Get all onboarding data (comprehensive data from all steps)
+router.get('/onboarding/data', authMiddleware(['physician']), PhysicianAuthController.getOnboardingData);
+
+// Step 1: Two-Factor Authentication
 router.post('/onboarding/step1', authMiddleware(['physician']), validate(onboardingStep1Schema), PhysicianAuthController.completeStep1);
 
-// Step 2: Professional Details
+// Step 2: Clinical Profile
 router.post('/onboarding/step2', authMiddleware(['physician']), PhysicianAuthController.completeStep2);
 
-// Step 3: Hospital Affiliation
+// Step 3: Medical Credentials Verification
 router.post('/onboarding/step3', authMiddleware(['physician']), validate(onboardingStep3Schema), PhysicianAuthController.completeStep3);
 
-// Step 4: NPI Verification
+// Step 4: Identity Verification
 router.post('/onboarding/step4', authMiddleware(['physician']), validate(onboardingStep4Schema), PhysicianAuthController.completeStep4);
 
-// Step 5: Identity Verification
+// Step 5: Compliance
 router.post('/onboarding/step5', authMiddleware(['physician']), validate(onboardingStep5Schema), PhysicianAuthController.completeStep5);
 
-// Step 6: Compliance
+// Step 6: Final Completion
 router.post('/onboarding/step6', authMiddleware(['physician']), validate(onboardingStep6Schema), PhysicianAuthController.completeStep6);
 
 export default router;

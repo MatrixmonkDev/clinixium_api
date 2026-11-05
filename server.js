@@ -32,8 +32,8 @@ app.set('trust proxy', true);
 // Security middleware
 securityMiddleware(app);
 
-// Rate limiting
-app.use(rateLimiter);
+// Rate limiting (commented out for development - RE-ENABLE IN PRODUCTION!)
+// app.use(rateLimiter);
 
 
 

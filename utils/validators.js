@@ -160,30 +160,45 @@ const onboardingStep2Schema = Joi.object({
   profile_photo_upload_id: Joi.number().integer().allow(null),
 });
 
-// Onboarding Step 3: Hospital Affiliation
+// Onboarding Step 3: Medical Credentials Verification
 const onboardingStep3Schema = Joi.object({
-  hospital_affiliation: Joi.string().max(255).required(),
-  practice_setting_other: Joi.string().max(150).allow(null, ''),
-});
-
-// Onboarding Step 4: NPI Verification
-const onboardingStep4Schema = Joi.object({
   npi_number: Joi.string().length(10).required(),
-  board_certified: Joi.boolean().required(),
+  medical_licenses: Joi.array().items(
+    Joi.object({
+      license_number: Joi.string().required().min(5).max(100),
+      state: Joi.string().required().min(2).max(100),
+      expiry_date: Joi.date().iso().required(),
+    })
+  ).min(1).required(),
+  medical_license_upload_ids: Joi.array().items(Joi.number().integer()).min(1).required(),
+  board_certification_upload_ids: Joi.array().items(Joi.number().integer()).min(1).required(),
 });
 
-// Onboarding Step 5: Identity Verification
+// Onboarding Step 4: Identity Verification
+const onboardingStep4Schema = Joi.object({
+  identity_document_upload_ids: Joi.array().items(Joi.number().integer()).min(1).required(),
+  selfie_upload_id: Joi.number().integer().required(),
+});
+
+// Onboarding Step 5: Compliance
 const onboardingStep5Schema = Joi.object({
-  identity_status: Joi.string().valid('not_started', 'pending', 'verified', 'failed').required(),
-  identity_provider: Joi.string().max(30).default('stripe_identity'),
-  identity_session_id: Joi.string().max(255).allow(null, ''),
+  agreed_document_ids: Joi.array().items(
+    Joi.number().integer().valid(8, 9, 10, 11)
+  ).min(4).required().messages({
+    'array.min': 'You must agree to all compliance documents',
+    'any.only': 'Invalid document type ID'
+  }),
+  conflict_of_interest: Joi.boolean().required(),
+  conflict_of_interest_details: Joi.string().max(500).allow(null, '').when('conflict_of_interest', {
+    is: true,
+    then: Joi.required(),
+    otherwise: Joi.allow(null, '')
+  }),
+  signature_upload_id: Joi.number().integer().required(),
 });
 
-// Onboarding Step 6: Compliance
-const onboardingStep6Schema = Joi.object({
-  conflict_of_interest: Joi.boolean().required(),
-  conflict_of_interest_details: Joi.string().max(500).allow(null, ''),
-});
+// Onboarding Step 6: Final Completion
+const onboardingStep6Schema = Joi.object({});
 
 const validate = (schema) => {
   return (req, res, next) => {

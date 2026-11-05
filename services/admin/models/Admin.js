@@ -85,6 +85,38 @@ class Admin {
     await pool.execute(query, [attempts, lockedUntil, id]);
   }
 
+  static async updateTwoFactor(id, data) {
+    const fields = [];
+    const values = [];
+
+    if (data.two_factor_enabled !== undefined) {
+      fields.push('two_factor_enabled = ?');
+      values.push(data.two_factor_enabled);
+    }
+    if (data.two_factor_method !== undefined) {
+      fields.push('two_factor_method = ?');
+      values.push(data.two_factor_method);
+    }
+    if (data.two_factor_secret !== undefined) {
+      fields.push('two_factor_secret = ?');
+      values.push(data.two_factor_secret);
+    }
+    if (data.two_factor_recovery_codes !== undefined) {
+      fields.push('two_factor_recovery_codes = ?');
+      values.push(data.two_factor_recovery_codes);
+    }
+    if (data.two_factor_confirmed_at !== undefined) {
+      fields.push('two_factor_confirmed_at = ?');
+      values.push(data.two_factor_confirmed_at);
+    }
+
+    if (fields.length === 0) return;
+
+    values.push(id);
+    const query = `UPDATE admin_mst SET ${fields.join(', ')} WHERE id = ?`;
+    await pool.execute(query, values);
+  }
+
   static async getPublicProfile(id) {
     const query = `
       SELECT

@@ -22,7 +22,7 @@ class Physician {
         uuid, email, password_hash, first_name, last_name,
         phone_number, country_code_id, professional_title,
         timezone_id, language, created_on
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const [result] = await pool.execute(query, [
