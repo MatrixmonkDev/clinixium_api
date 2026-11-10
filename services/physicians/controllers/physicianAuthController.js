@@ -154,6 +154,9 @@ class PhysicianAuthController {
       await LoginActivityService.logLoginAttempt('P', physician.id, ip, browser, 'success');
       await LoginActivityService.resetLoginAttempts('P', physician.id, ip);
 
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      const profile_photo = physician.profile_photo_path ? `${baseUrl}${physician.profile_photo_path}` : null;
+
       res.status(200).json({
         success: true,
         two_factor_enabled: 0,
@@ -166,6 +169,9 @@ class PhysicianAuthController {
             email: physician.email,
             first_name: physician.first_name,
             last_name: physician.last_name,
+            profile_photo,
+            is_onboard_complete: physician.is_onboard_complete || 0,
+            is_approved: physician.is_approved || 0,
           },
         },
       });
@@ -239,6 +245,9 @@ class PhysicianAuthController {
       await LoginActivityService.logLoginAttempt('P', physicianId, ip, browser, 'success');
       await LoginActivityService.resetLoginAttempts('P', physicianId, ip);
 
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      const profile_photo = physician.profile_photo_path ? `${baseUrl}${physician.profile_photo_path}` : null;
+
       res.status(200).json({
         success: true,
         two_factor_enabled: 1,
@@ -251,6 +260,9 @@ class PhysicianAuthController {
             email: physician.email,
             first_name: physician.first_name,
             last_name: physician.last_name,
+            profile_photo,
+            is_onboard_complete: physician.is_onboard_complete || 0,
+            is_approved: physician.is_approved || 0,
           },
         },
       });
@@ -466,7 +478,7 @@ class PhysicianAuthController {
 
         // Step 6: Final Completion
         const [step6Physician] = await connection.execute(
-          'SELECT onboarding_completed_at FROM physicians WHERE id = ?',
+          'SELECT onboarding_completed_at, is_onboard_complete, is_approved FROM physicians WHERE id = ?',
           [physicianId]
         );
 
@@ -550,7 +562,7 @@ class PhysicianAuthController {
         const physician = await Physician.getPublicProfile(physicianId);
 
         // Step 1: Check 2FA
-        const step1Completed = !!physician.two_factor_enabled && !!physician.two_factor_secret;
+        const step1Completed = !!physician.two_factor_enabled && !!physician.two_factor_confirmed_at;
 
         // Step 2: Check clinical profile data (major fields only)
         const step2Completed = !!physician.first_name && !!physician.last_name && !!physician.professional_title;
@@ -570,7 +582,7 @@ class PhysicianAuthController {
         const step5Completed = !!physician.compliance_completed_at && physician.conflict_of_interest !== null;
 
         // Step 6: Check final completion
-        const step6Completed = physician.onboarding_step >= 7 && !!physician.onboarding_completed_at;
+        const step6Completed = physician.onboarding_step >= 6 && !!physician.onboarding_completed_at;
 
         const steps = {
           step1: {
@@ -600,7 +612,7 @@ class PhysicianAuthController {
         };
 
         const currentStep = physician.onboarding_step;
-        const isCompleted = physician.onboarding_step >= 7;
+        const isCompleted = physician.onboarding_step >= 6;
         const completedSteps = Object.values(steps).filter(step => step.completed).length;
         const progressPercentage = Math.round((completedSteps / 6) * 100);
 
@@ -628,11 +640,11 @@ class PhysicianAuthController {
     try {
       const physicianId = req.user.id;
 
-      const physician = await Physician.findById(physicianId);
+      const physician = await Physician.getPublicProfile(physicianId);
 
       // Step 1 is only for Two-Factor Authentication setup
       // Check if 2FA is enabled before marking as complete
-      if (!physician.two_factor_enabled || !physician.two_factor_secret) {
+      if (!physician.two_factor_enabled || !physician.two_factor_confirmed_at) {
         return res.status(400).json({
           success: false,
           message: 'Two-factor authentication must be enabled before completing Step 1',
@@ -1001,8 +1013,9 @@ class PhysicianAuthController {
       const physicianId = req.user.id;
 
       await Physician.update(physicianId, {
-        onboarding_step: 7,
+        onboarding_step: 6,
         onboarding_completed_at: getCurrentTimestampString(),
+        is_onboard_complete: 1,
       });
 
       const physician = await Physician.getPublicProfile(physicianId);

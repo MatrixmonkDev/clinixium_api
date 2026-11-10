@@ -73,6 +73,14 @@ const updateProfileSchema = Joi.object({
   ai_annotation_experience: Joi.string().valid('none', 'some', 'moderate', 'expert'),
   npi_number: Joi.string().length(10),
   board_certified: Joi.boolean(),
+  profile_photo_upload_id: Joi.number().integer().allow(null),
+});
+
+const staffUpdateProfileSchema = Joi.object({
+  user_name: Joi.string().min(2).max(100),
+  user_mname: Joi.string().max(100).allow('', null),
+  user_lname: Joi.string().max(100).allow('', null),
+  thumbnail_upload_id: Joi.number().integer().allow(null),
 });
 
 const changePasswordSchema = Joi.object({
@@ -227,6 +235,7 @@ export {
   loginSchema,
   staffRegisterSchema,
   updateProfileSchema,
+  staffUpdateProfileSchema,
   changePasswordSchema,
   simpleChangePasswordSchema,
   twoFactorSetupSchema,

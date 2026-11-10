@@ -3,6 +3,14 @@
 ## Overview
 This documentation covers all APIs for the Clinixium platform, including admin management, physician onboarding, and shared services.
 
+## Physician Registration Status
+When a physician registers, their account status is set to **0 (Pending)**. They must complete all 6 onboarding steps before their account can be reviewed by an admin. After onboarding completion, an admin must approve the account (change status to **1**) before the physician can access full platform features.
+
+**Status Values:**
+- **0** - Pending (registration completed, awaiting onboarding and approval)
+- **1** - Approved (account active, full access)
+- **2** - Rejected (account denied)
+
 ---
 
 # Physician Onboarding APIs
@@ -677,7 +685,316 @@ DELETE /api/uploads/:id
 # Admin Onboarding APIs Documentation
 
 ## Overview
-These APIs allow admins to manage the onboarding options for physicians, including medical departments, categories, practice settings, imaging modalities, and AI annotation experiences.
+These APIs allow admins to manage the onboarding options for physicians, including medical departments, categories, practice settings, imaging modalities, and AI annotation experiences. Also includes physician approval workflow.
+
+---
+
+## Physician Approval Workflow
+
+### Status Values
+- **0** - Pending (registration completed, awaiting admin approval)
+- **1** - Approved (account active, full access)
+- **2** - Rejected (account denied)
+
+### Get Physicians List
+```
+GET /api/admin/physicians
+```
+**Auth:** Bearer Token (Admin)
+**Description:** Get list of physicians with optional status filter.
+
+**Query Parameters:**
+- `page` (optional, default: 1) - Page number
+- `limit` (optional, default: 20) - Items per page
+- `search` (optional) - Search by first_name, last_name, or email
+- `status` (optional) - Filter by status: 0 (pending), 1 (approved), 2 (rejected)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "uuid": "550e8400-e29b-41d4-a716-446655440000",
+      "email": "physician@example.com",
+      "first_name": "Emily",
+      "last_name": "Carter",
+      "phone_number": "4155550187",
+      "country_code_id": 1,
+      "professional_title": "MD",
+      "profile_photo_path": "/uploads/profile.jpg",
+      "status": 0,
+      "onboarding_step": 1,
+      "onboarding_completed_at": null,
+      "created_on": "2026-11-04 10:00:00"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 5,
+    "totalPages": 1
+  }
+}
+```
+
+**Examples:**
+- Get all physicians: `GET /api/admin/physicians`
+- Get pending physicians: `GET /api/admin/physicians?status=0`
+- Get approved physicians: `GET /api/admin/physicians?status=1`
+- Get rejected physicians: `GET /api/admin/physicians?status=2`
+- Search physicians: `GET /api/admin/physicians?search=Emily`
+
+---
+
+### Get Physician Details
+```
+GET /api/admin/physicians/:physicianId
+```
+**Auth:** Bearer Token (Admin)
+**Description:** Get physician details with optional onboarding data and login history.
+
+**Query Parameters:**
+- `include` (optional) - What data to include:
+  - `onboarding` - Include onboarding data (all 6 steps)
+  - `login_history` - Include login history
+  - `all` - Include both onboarding data and login history
+  - Omit parameter to include both by default
+
+**Response (include=all):**
+```json
+{
+  "success": true,
+  "data": {
+    "physician": {
+      "id": 1,
+      "uuid": "550e8400-e29b-41d4-a716-446655440000",
+      "email": "physician@example.com",
+      "first_name": "Emily",
+      "last_name": "Carter",
+      "phone_number": "4155550187",
+      "country_code_id": 1,
+      "professional_title": "MD",
+      "profile_photo_path": "/uploads/profile.jpg",
+      "status": 0,
+      "onboarding_step": 6,
+      "onboarding_completed_at": "2026-11-04 10:00:00",
+      "created_on": "2026-11-04 10:00:00"
+    },
+    "onboarding": {
+      "step1": {
+        "two_factor_enabled": 1,
+        "two_factor_method": "authenticator",
+        "two_factor_confirmed_at": "2026-11-04 10:30:00"
+      },
+      "step2": {
+        "first_name": "Emily",
+        "last_name": "Carter",
+        "phone_number": "4155550187",
+        "country_code_id": 1,
+        "country_code": "+1",
+        "country_name": "United States",
+        "timezone_id": 1,
+        "timezone_name": "Asia/Kolkata",
+        "timezone_offset": "+05:30",
+        "professional_title": "MD",
+        "career_start_year": 2016,
+        "profile_photo_path": "/uploads/profile.jpg",
+        "profile_photo": "http://localhost:3000/uploads/profile.jpg",
+        "departments": [
+          {
+            "id": 1,
+            "is_primary": 1,
+            "department_id": 1,
+            "department_name": "Cardiology"
+          }
+        ],
+        "categories": [
+          {
+            "id": 1,
+            "category_id": 1,
+            "category_name": "Interventional Cardiology",
+            "parent_id": null
+          }
+        ],
+        "practice_settings": [
+          {
+            "id": 1,
+            "practice_setting_id": 1,
+            "practice_setting_name": "Hospital",
+            "other_value": null
+          }
+        ],
+        "imaging_modalities": [
+          {
+            "id": 1,
+            "imaging_modality_id": 1,
+            "other_modality": null,
+            "modality_name": "CT Scan"
+          }
+        ],
+        "ai_experience": {
+          "id": 1,
+          "ai_experience_id": 1,
+          "ai_experience_name": "Beginner"
+        }
+      },
+      "step3": {
+        "npi_number": "1234567890",
+        "medical_licenses": [
+          {
+            "id": 1,
+            "license_number": "MD12345",
+            "state": "California",
+            "expiry_date": "2026-12-31"
+          }
+        ],
+        "medical_license_documents": [
+          {
+            "id": 1,
+            "url": "http://localhost:3000/uploads/license.pdf",
+            "file_name": "license.pdf",
+            "file_size": 102400,
+            "mime_type": "application/pdf",
+            "created_at": "2026-11-04 10:00:00"
+          }
+        ],
+        "board_certification_documents": [
+          {
+            "id": 2,
+            "url": "http://localhost:3000/uploads/cert.pdf",
+            "file_name": "cert.pdf",
+            "file_size": 204800,
+            "mime_type": "application/pdf",
+            "created_at": "2026-11-04 10:00:00"
+          }
+        ]
+      },
+      "step4": {
+        "identity_status": "pending",
+        "identity_provider": "manual",
+        "identity_session_id": null,
+        "identity_verified_at": null,
+        "identity_documents": [
+          {
+            "id": 3,
+            "url": "http://localhost:3000/uploads/id.pdf",
+            "file_name": "id.pdf",
+            "file_size": 512000,
+            "mime_type": "application/pdf",
+            "created_at": "2026-11-04 10:00:00"
+          }
+        ],
+        "selfie_document": {
+          "id": 4,
+          "url": "http://localhost:3000/uploads/selfie.jpg",
+          "file_name": "selfie.jpg",
+          "file_size": 256000,
+          "mime_type": "image/jpeg",
+          "created_at": "2026-11-04 10:00:00"
+        }
+      },
+      "step5": {
+        "compliance_completed_at": "2026-11-04 10:00:00",
+        "conflict_of_interest": false,
+        "conflict_of_interest_details": null,
+        "compliance_documents": [
+          {
+            "id": 1,
+            "physician_id": 1,
+            "doc_type_id": 8,
+            "agreed": 1,
+            "agreed_at": "2026-11-04 10:00:00",
+            "signature_upload_id": 5,
+            "document_name": "Terms of Service",
+            "document_description": "Clinixium Terms of Service",
+            "signature_url": "http://localhost:3000/uploads/signature.jpg"
+          }
+        ]
+      },
+      "step6": {
+        "onboarding_completed_at": "2026-11-04 10:00:00"
+      }
+    },
+    "login_history": [
+      {
+        "id": 1,
+        "user_type": "P",
+        "user_id": 1,
+        "ip_address": "192.168.1.1",
+        "browser": "Chrome",
+        "status": "success",
+        "attempt_count": 1,
+        "created_at": "2026-11-04 10:00:00"
+      }
+    ]
+  }
+}
+```
+
+**Examples:**
+- Get basic physician info: `GET /api/admin/physicians/1`
+- Get physician with onboarding data: `GET /api/admin/physicians/1?include=onboarding`
+- Get physician with login history: `GET /api/admin/physicians/1?include=login_history`
+- Get physician with all data: `GET /api/admin/physicians/1?include=all`
+
+---
+
+### Approve/Reject Physician
+```
+PUT /api/admin/physicians/:physicianId/approve
+```
+**Auth:** Bearer Token (Admin)
+**Description:** Approve or reject a physician account.
+
+**Request Body:**
+```json
+{
+  "status": "1",
+  "rejection_reason": null
+}
+```
+
+**Body Parameters:**
+- `status` (required) - "1" for approve, "2" for reject
+- `rejection_reason` (optional) - Required when status = "2"
+
+**Response (Approve):**
+```json
+{
+  "success": true,
+  "message": "Physician approved successfully",
+  "data": {
+    "id": 1,
+    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "physician@example.com",
+    "first_name": "Emily",
+    "last_name": "Carter",
+    "status": 1,
+    "approved_at": "2026-11-04 10:00:00",
+    "reviewed_by": 1
+  }
+}
+```
+
+**Response (Reject):**
+```json
+{
+  "success": true,
+  "message": "Physician rejected successfully",
+  "data": {
+    "id": 1,
+    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "physician@example.com",
+    "first_name": "Emily",
+    "last_name": "Carter",
+    "status": 2,
+    "rejection_reason": "Incomplete documentation",
+    "rejected_at": "2026-11-04 10:00:00"
+  }
+}
+```
 
 ---
 
@@ -1160,7 +1477,8 @@ These tables are fixed and seeded via SQL migrations:
 | Practice Settings | 5 | ✅ | Practice setting options |
 | Imaging Modalities | 5 | ✅ | Imaging modality options |
 | AI Annotation Experiences | 5 | ✅ | AI experience levels |
-| **Admin Total** | **28** | ✅ | Complete admin management |
+| Physician Management | 2 | ✅ | Get physicians list (with status filter), get physician details (with onboarding + login history), approve/reject |
+| **Admin Total** | **30** | ✅ | Complete admin management |
 
 ### Physician APIs
 
@@ -1179,4 +1497,4 @@ These tables are fixed and seeded via SQL migrations:
 || Options | 11 | Public dropdown data |
 || **Shared Total** | **15** | File management & options |
 
-### Grand Total: **51 APIs**
+### Grand Total: **53 APIs**

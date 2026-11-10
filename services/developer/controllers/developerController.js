@@ -1,6 +1,7 @@
 import Developer from '../models/Developer.js';
 import AuthService from '../../../services/authService.js';
 import LoginActivityService from '../../../services/loginActivityService.js';
+import pool from '../../../config/database.js';
 
 class DeveloperController {
   static async getProfile(req, res, next) {
@@ -28,9 +29,22 @@ class DeveloperController {
   static async updateProfile(req, res, next) {
     try {
       const developerId = req.user.id;
-      const updateData = req.body;
+      const { thumbnail_upload_id, ...updateData } = req.body;
 
-      await Developer.update(developerId, updateData);
+      // Update thumbnail if upload_id is provided
+      if (thumbnail_upload_id) {
+        const updatePhotoQuery = `
+          UPDATE developer_mst
+          SET thumbnail = (SELECT url FROM user_uploads WHERE id = ? AND user_id = ? AND user_type = 'D')
+          WHERE id = ?
+        `;
+        await pool.execute(updatePhotoQuery, [thumbnail_upload_id, developerId, developerId]);
+      }
+
+      // Update other fields
+      if (Object.keys(updateData).length > 0) {
+        await Developer.update(developerId, updateData);
+      }
 
       const updatedDeveloper = await Developer.getPublicProfile(developerId);
 

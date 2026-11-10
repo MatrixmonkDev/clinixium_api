@@ -20,11 +20,14 @@ class MedicalCategory {
       SELECT 
         mc.*,
         md.name as department_name,
-        parent.name as parent_name
+        parent.name as parent_name,
+        COUNT(DISTINCT pc.physician_id) as physician_count
       FROM medical_categories mc
       LEFT JOIN medical_departments md ON mc.medical_department_id = md.id
       LEFT JOIN medical_categories parent ON mc.parent_id = parent.id
+      LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
       WHERE mc.is_active = 1 AND mc.status = 1
+      GROUP BY mc.id
       ORDER BY mc.name ASC
     `;
 
@@ -36,10 +39,13 @@ class MedicalCategory {
     const query = `
       SELECT 
         mc.*,
-        parent.name as parent_name
+        parent.name as parent_name,
+        COUNT(DISTINCT pc.physician_id) as physician_count
       FROM medical_categories mc
       LEFT JOIN medical_categories parent ON mc.parent_id = parent.id
+      LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
       WHERE mc.medical_department_id = ? AND mc.is_active = 1 AND mc.status = 1 AND mc.parent_id IS NULL
+      GROUP BY mc.id
       ORDER BY mc.name ASC
     `;
 
@@ -56,11 +62,14 @@ class MedicalCategory {
         SELECT
           mc.*,
           md.name as department_name,
-          parent.name as parent_name
+          parent.name as parent_name,
+          COUNT(DISTINCT pc.physician_id) as physician_count
         FROM medical_categories mc
         LEFT JOIN medical_departments md ON mc.medical_department_id = md.id
         LEFT JOIN medical_categories parent ON mc.parent_id = parent.id
+        LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
         WHERE mc.parent_id IS NULL AND mc.is_active = 1 AND mc.status = 1
+        GROUP BY mc.id
         ORDER BY mc.name ASC
       `;
       params = [];
@@ -69,11 +78,14 @@ class MedicalCategory {
         SELECT
           mc.*,
           md.name as department_name,
-          parent.name as parent_name
+          parent.name as parent_name,
+          COUNT(DISTINCT pc.physician_id) as physician_count
         FROM medical_categories mc
         LEFT JOIN medical_departments md ON mc.medical_department_id = md.id
         LEFT JOIN medical_categories parent ON mc.parent_id = parent.id
+        LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
         WHERE mc.parent_id = ? AND mc.is_active = 1 AND mc.status = 1
+        GROUP BY mc.id
         ORDER BY mc.name ASC
       `;
       params = [parentId];
@@ -85,9 +97,14 @@ class MedicalCategory {
 
   static async findChildren(parentId) {
     const query = `
-      SELECT * FROM medical_categories
-      WHERE parent_id = ? AND is_active = 1 AND status = 1
-      ORDER BY name ASC
+      SELECT 
+        mc.*,
+        COUNT(DISTINCT pc.physician_id) as physician_count
+      FROM medical_categories mc
+      LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
+      WHERE mc.parent_id = ? AND mc.is_active = 1 AND mc.status = 1
+      GROUP BY mc.id
+      ORDER BY mc.name ASC
     `;
 
     const [rows] = await pool.execute(query, [parentId]);

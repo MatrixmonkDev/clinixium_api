@@ -37,6 +37,7 @@ class Physician {
       timezone_id ?? null,
       language ?? null,
       now,
+      0, // status = 0 (pending) instead of 1 (approved)
     ]);
 
     return result.insertId;
@@ -133,14 +134,22 @@ class Physician {
         p.identity_session_id, p.identity_verified_at,
         p.conflict_of_interest, p.conflict_of_interest_details,
         p.compliance_completed_at, p.onboarding_step,
-        p.onboarding_completed_at, p.two_factor_enabled, p.status
+        p.onboarding_completed_at, p.two_factor_enabled, p.two_factor_method, p.two_factor_confirmed_at, p.status,
+        p.is_onboard_complete, p.is_approved
       FROM physicians p
       LEFT JOIN country_codes cc ON p.country_code_id = cc.id
       LEFT JOIN timezones tz ON p.timezone_id = tz.id
       WHERE p.id = ?
     `;
     const [rows] = await pool.execute(query, [id]);
-    return rows[0];
+    const physician = rows[0];
+
+    if (physician && physician.profile_photo_path) {
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      physician.profile_photo = `${baseUrl}${physician.profile_photo_path}`;
+    }
+
+    return physician;
   }
 }
 

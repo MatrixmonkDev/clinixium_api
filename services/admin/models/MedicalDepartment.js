@@ -17,9 +17,14 @@ class MedicalDepartment {
 
   static async findAll() {
     const query = `
-      SELECT * FROM medical_departments
-      WHERE is_active = 1 AND status = 1
-      ORDER BY name ASC
+      SELECT 
+        md.*,
+        COUNT(DISTINCT pd.physician_id) as physician_count
+      FROM medical_departments md
+      LEFT JOIN physician_departments pd ON md.id = pd.medical_department_id AND pd.status = 1
+      WHERE md.is_active = 1 AND md.status = 1
+      GROUP BY md.id
+      ORDER BY md.name ASC
     `;
 
     const [rows] = await pool.execute(query);

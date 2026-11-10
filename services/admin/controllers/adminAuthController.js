@@ -143,6 +143,9 @@ class AdminAuthController {
       await LoginActivityService.logLoginAttempt('A', admin.id, ip, browser, 'success');
       await LoginActivityService.resetLoginAttempts('A', admin.id, ip);
 
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      const thumbnail = admin.thumbnail ? `${baseUrl}${admin.thumbnail}` : null;
+
       res.status(200).json({
         success: true,
         two_factor_enabled: 0,
@@ -155,7 +158,7 @@ class AdminAuthController {
             user_name: admin.user_name,
             user_mname: admin.user_mname,
             user_lname: admin.user_lname,
-            thumbnail: admin.thumbnail,
+            thumbnail,
             user_email: admin.user_email,
           },
         },
@@ -227,6 +230,9 @@ class AdminAuthController {
       await LoginActivityService.logLoginAttempt('A', adminId, ip, browser, 'success');
       await LoginActivityService.resetLoginAttempts('A', adminId, ip);
 
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      const thumbnail = admin.thumbnail ? `${baseUrl}${admin.thumbnail}` : null;
+
       res.status(200).json({
         success: true,
         two_factor_enabled: 1,
@@ -239,7 +245,7 @@ class AdminAuthController {
             user_name: admin.user_name,
             user_mname: admin.user_mname,
             user_lname: admin.user_lname,
-            thumbnail: admin.thumbnail,
+            thumbnail,
             user_email: admin.user_email,
           },
         },

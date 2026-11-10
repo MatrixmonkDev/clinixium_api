@@ -121,12 +121,20 @@ class Admin {
     const query = `
       SELECT
         id, user_id, user_name, user_mname, user_lname,
-        thumbnail, user_email, insert_date, last_login, status
+        thumbnail, user_email, insert_date, last_login, status,
+        two_factor_enabled, two_factor_method, two_factor_confirmed_at
       FROM admin_mst
       WHERE id = ?
     `;
     const [rows] = await pool.execute(query, [id]);
-    return rows[0];
+    const admin = rows[0];
+
+    if (admin && admin.thumbnail) {
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      admin.thumbnail = `${baseUrl}${admin.thumbnail}`;
+    }
+
+    return admin;
   }
 }
 

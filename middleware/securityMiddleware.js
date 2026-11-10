@@ -13,6 +13,7 @@ const securityMiddleware = (app) => {
       },
     },
     crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
   }));
 
   // CORS configuration

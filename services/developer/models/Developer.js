@@ -121,12 +121,20 @@ class Developer {
     const query = `
       SELECT
         id, user_id, user_name, user_mname, user_lname,
-        thumbnail, user_email, insert_date, last_login, status
+        thumbnail, user_email, insert_date, last_login, status,
+        two_factor_enabled, two_factor_method, two_factor_confirmed_at
       FROM developer_mst
       WHERE id = ?
     `;
     const [rows] = await pool.execute(query, [id]);
-    return rows[0];
+    const developer = rows[0];
+
+    if (developer && developer.thumbnail) {
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      developer.thumbnail = `${baseUrl}${developer.thumbnail}`;
+    }
+
+    return developer;
   }
 }
 

@@ -143,6 +143,9 @@ class DeveloperAuthController {
       await LoginActivityService.logLoginAttempt('D', developer.id, ip, browser, 'success');
       await LoginActivityService.resetLoginAttempts('D', developer.id, ip);
 
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      const thumbnail = developer.thumbnail ? `${baseUrl}${developer.thumbnail}` : null;
+
       res.status(200).json({
         success: true,
         two_factor_enabled: 0,
@@ -155,7 +158,7 @@ class DeveloperAuthController {
             user_name: developer.user_name,
             user_mname: developer.user_mname,
             user_lname: developer.user_lname,
-            thumbnail: developer.thumbnail,
+            thumbnail,
             user_email: developer.user_email,
           },
         },
@@ -227,6 +230,9 @@ class DeveloperAuthController {
       await LoginActivityService.logLoginAttempt('D', developerId, ip, browser, 'success');
       await LoginActivityService.resetLoginAttempts('D', developerId, ip);
 
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      const thumbnail = developer.thumbnail ? `${baseUrl}${developer.thumbnail}` : null;
+
       res.status(200).json({
         success: true,
         two_factor_enabled: 1,
@@ -239,7 +245,7 @@ class DeveloperAuthController {
             user_name: developer.user_name,
             user_mname: developer.user_mname,
             user_lname: developer.user_lname,
-            thumbnail: developer.thumbnail,
+            thumbnail,
             user_email: developer.user_email,
           },
         },
