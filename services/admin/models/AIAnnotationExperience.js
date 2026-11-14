@@ -26,6 +26,17 @@ class AIAnnotationExperience {
     return rows;
   }
 
+  static async findAllForAdmin() {
+    const query = `
+      SELECT * FROM ai_annotation_experiences
+      WHERE is_active = 1
+      ORDER BY name ASC
+    `;
+
+    const [rows] = await pool.execute(query);
+    return rows;
+  }
+
   static async findById(id) {
     const query = 'SELECT * FROM ai_annotation_experiences WHERE id = ?';
     const [rows] = await pool.execute(query, [id]);
@@ -66,6 +77,16 @@ class AIAnnotationExperience {
   static async delete(id) {
     const query = 'DELETE FROM ai_annotation_experiences WHERE id = ?';
     await pool.execute(query, [id]);
+  }
+
+  static async disable(id) {
+    const query = 'UPDATE ai_annotation_experiences SET status = 0, updated_at = ? WHERE id = ?';
+    await pool.execute(query, [getCurrentTimestampString(), id]);
+  }
+
+  static async enable(id) {
+    const query = 'UPDATE ai_annotation_experiences SET status = 1, updated_at = ? WHERE id = ?';
+    await pool.execute(query, [getCurrentTimestampString(), id]);
   }
 }
 

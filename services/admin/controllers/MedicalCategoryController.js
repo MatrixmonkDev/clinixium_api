@@ -4,7 +4,7 @@ import Joi from 'joi';
 class MedicalCategoryController {
   static async getAll(req, res, next) {
     try {
-      const categories = await MedicalCategory.findAll();
+      const categories = await MedicalCategory.findAllForAdmin();
       res.status(200).json({
         success: true,
         data: categories,
@@ -17,7 +17,7 @@ class MedicalCategoryController {
   static async getByDepartment(req, res, next) {
     try {
       const { departmentId } = req.params;
-      const categories = await MedicalCategory.findByDepartment(departmentId);
+      const categories = await MedicalCategory.findByDepartmentForAdmin(departmentId);
       res.status(200).json({
         success: true,
         data: categories,
@@ -29,7 +29,7 @@ class MedicalCategoryController {
 
   static async getSubSpecialties(req, res, next) {
     try {
-      const categories = await MedicalCategory.findByParentId(null);
+      const categories = await MedicalCategory.findByParentIdForAdmin(null);
       res.status(200).json({
         success: true,
         data: categories,
@@ -42,7 +42,7 @@ class MedicalCategoryController {
   static async getChildren(req, res, next) {
     try {
       const { parentId } = req.params;
-      const children = await MedicalCategory.findChildren(parentId);
+      const children = await MedicalCategory.findChildrenForAdmin(parentId);
       res.status(200).json({
         success: true,
         data: children,
@@ -162,6 +162,52 @@ class MedicalCategoryController {
       res.status(200).json({
         success: true,
         message: 'Medical category deleted successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async disable(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const existing = await MedicalCategory.findById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'Medical category not found',
+        });
+      }
+
+      await MedicalCategory.disable(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Medical category disabled successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async enable(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const existing = await MedicalCategory.findById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'Medical category not found',
+        });
+      }
+
+      await MedicalCategory.enable(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Medical category enabled successfully',
       });
     } catch (error) {
       next(error);

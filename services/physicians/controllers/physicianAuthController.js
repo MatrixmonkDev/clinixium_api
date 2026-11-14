@@ -8,6 +8,12 @@ import PhysicianMedicalLicense from '../models/PhysicianMedicalLicense.js';
 import PhysicianComplianceDocument from '../models/PhysicianComplianceDocument.js';
 import AuthService from '../../../services/authService.js';
 import TwoFactorService from '../../../services/twoFactorService.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import RefreshTokenService from '../../../services/refreshTokenService.js';
 import LoginActivityService from '../../../services/loginActivityService.js';
 import { setRefreshCookie } from '../../../utils/refreshCookie.js';
@@ -99,6 +105,13 @@ class PhysicianAuthController {
         });
       }
 
+      if (physician.status === 2) {
+        return res.status(403).json({
+          success: false,
+          message: 'Account expired',
+        });
+      }
+
       const isPasswordValid = await AuthService.comparePassword(password, physician.password_hash);
       if (!isPasswordValid) {
         await LoginActivityService.logLoginAttempt('P', physician.id, ip, browser, 'failed', 'Invalid password');
@@ -170,6 +183,7 @@ class PhysicianAuthController {
             first_name: physician.first_name,
             last_name: physician.last_name,
             profile_photo,
+            onboarding_step: physician.onboarding_step || 1,
             is_onboard_complete: physician.is_onboard_complete || 0,
             is_approved: physician.is_approved || 0,
           },
@@ -195,6 +209,13 @@ class PhysicianAuthController {
       }
 
       //console.log('physician found', physician);
+
+      if (physician.status === 2) {
+        return res.status(403).json({
+          success: false,
+          message: 'Account expired',
+        });
+      }
 
       if (!physician.two_factor_secret) {
         return res.status(400).json({
@@ -261,6 +282,7 @@ class PhysicianAuthController {
             first_name: physician.first_name,
             last_name: physician.last_name,
             profile_photo,
+            onboarding_step: physician.onboarding_step || 1,
             is_onboard_complete: physician.is_onboard_complete || 0,
             is_approved: physician.is_approved || 0,
           },
@@ -275,7 +297,24 @@ class PhysicianAuthController {
     try {
       const physicianId = req.user.id;
 
-      const secret = TwoFactorService.generateSecret();
+      const physician = await Physician.findById(physicianId);
+      if (!physician) {
+        return res.status(404).json({
+          success: false,
+          message: 'Physician not found',
+        });
+      }
+
+      if (physician.status === 2) {
+        return res.status(403).json({
+          success: false,
+          message: 'Account expired',
+        });
+      }
+
+      // Custom issuer with user type and email
+      const issuer = `Clinixium (P: ${physician.email})`;
+      const secret = TwoFactorService.generateSecret(issuer);
       const qrCode = await TwoFactorService.generateQRCode(secret);
       const recoveryCodes = TwoFactorService.generateRecoveryCodes();
 
@@ -304,6 +343,21 @@ class PhysicianAuthController {
         return res.status(400).json({
           success: false,
           message: 'Invalid two-factor code',
+        });
+      }
+
+      const physician = await Physician.findById(physicianId);
+      if (!physician) {
+        return res.status(404).json({
+          success: false,
+          message: 'Physician not found',
+        });
+      }
+
+      if (physician.status === 2) {
+        return res.status(403).json({
+          success: false,
+          message: 'Account expired',
         });
       }
 
@@ -471,7 +525,7 @@ class PhysicianAuthController {
           `SELECT pcd.*, dt.name as document_name, dt.description as document_description, u.url as signature_url
           FROM physician_compliance_documents pcd
           LEFT JOIN doc_types dt ON pcd.doc_type_id = dt.id
-          LEFT JOIN user_uploads u ON pcd.signature_upload_id = u.id
+          LEFT JOIN user_uploads u ON pcd.signature_upload_id = u.id AND u.status = 1
           WHERE pcd.physician_id = ? AND pcd.status = 1`,
           [physicianId]
         );
@@ -847,7 +901,7 @@ class PhysicianAuthController {
         );
       }
 
-      // Validate ownership of medical license uploads (doc_type_id = 3)
+      // Validate ownership of medical license uploads (doc_type_id = 3) FIRST
       for (const uploadId of medical_license_upload_ids) {
         const [upload] = await connection.execute(
           'SELECT * FROM user_uploads WHERE id = ? AND user_id = ? AND user_type = ? AND doc_type_id = 3 AND status = 1',
@@ -858,7 +912,7 @@ class PhysicianAuthController {
         }
       }
 
-      // Validate ownership of board certification uploads (doc_type_id = 5)
+      // Validate ownership of board certification uploads (doc_type_id = 5) FIRST
       for (const uploadId of board_certification_upload_ids) {
         const [upload] = await connection.execute(
           'SELECT * FROM user_uploads WHERE id = ? AND user_id = ? AND user_type = ? AND doc_type_id = 5 AND status = 1',
@@ -867,6 +921,76 @@ class PhysicianAuthController {
         if (!upload.length) {
           throw new Error('Invalid board certification upload ID or access denied');
         }
+      }
+
+      // Get existing medical license uploads (doc_type_id = 3) before disabling
+      const [existingLicenseUploads] = await connection.execute(
+        'SELECT id, url FROM user_uploads WHERE user_id = ? AND user_type = ? AND doc_type_id = 3 AND status = 1',
+        [physicianId, 'P']
+      );
+
+      // Delete physical files for existing medical license uploads (excluding the ones being resubmitted)
+      for (const doc of existingLicenseUploads) {
+        // Don't delete if it's one of the new uploads being submitted
+        if (!medical_license_upload_ids.includes(doc.id)) {
+          const filePath = path.join(__dirname, '../../../uploads', path.basename(doc.url));
+          if (fs.existsSync(filePath)) {
+            try {
+              fs.unlinkSync(filePath);
+            } catch (err) {
+              console.error('Error deleting file:', filePath, err);
+            }
+          }
+        }
+      }
+
+      // Mark existing medical license uploads as disabled in database (excluding the ones being resubmitted)
+      if (medical_license_upload_ids.length > 0) {
+        const placeholders = medical_license_upload_ids.map(() => '?').join(',');
+        await connection.execute(
+          `UPDATE user_uploads SET status = 0 WHERE user_id = ? AND user_type = ? AND doc_type_id = 3 AND id NOT IN (${placeholders})`,
+          [physicianId, 'P', ...medical_license_upload_ids]
+        );
+      } else {
+        await connection.execute(
+          'UPDATE user_uploads SET status = 0 WHERE user_id = ? AND user_type = ? AND doc_type_id = 3',
+          [physicianId, 'P']
+        );
+      }
+
+      // Get existing board certification uploads (doc_type_id = 5) before disabling
+      const [existingBoardUploads] = await connection.execute(
+        'SELECT id, url FROM user_uploads WHERE user_id = ? AND user_type = ? AND doc_type_id = 5 AND status = 1',
+        [physicianId, 'P']
+      );
+
+      // Delete physical files for existing board certification uploads (excluding the ones being resubmitted)
+      for (const doc of existingBoardUploads) {
+        // Don't delete if it's one of the new uploads being submitted
+        if (!board_certification_upload_ids.includes(doc.id)) {
+          const filePath = path.join(__dirname, '../../../uploads', path.basename(doc.url));
+          if (fs.existsSync(filePath)) {
+            try {
+              fs.unlinkSync(filePath);
+            } catch (err) {
+              console.error('Error deleting file:', filePath, err);
+            }
+          }
+        }
+      }
+
+      // Mark existing board certification uploads as disabled in database (excluding the ones being resubmitted)
+      if (board_certification_upload_ids.length > 0) {
+        const placeholders = board_certification_upload_ids.map(() => '?').join(',');
+        await connection.execute(
+          `UPDATE user_uploads SET status = 0 WHERE user_id = ? AND user_type = ? AND doc_type_id = 5 AND id NOT IN (${placeholders})`,
+          [physicianId, 'P', ...board_certification_upload_ids]
+        );
+      } else {
+        await connection.execute(
+          'UPDATE user_uploads SET status = 0 WHERE user_id = ? AND user_type = ? AND doc_type_id = 5',
+          [physicianId, 'P']
+        );
       }
 
       await connection.commit();
@@ -897,7 +1021,7 @@ class PhysicianAuthController {
         selfie_upload_id,
       } = req.body;
 
-      // Validate ownership of ID documents (doc_type_id = 1)
+      // Validate ownership of ID documents (doc_type_id = 1) FIRST
       for (const uploadId of identity_document_upload_ids) {
         const [upload] = await connection.execute(
           'SELECT * FROM user_uploads WHERE id = ? AND user_id = ? AND user_type = ? AND doc_type_id = 1 AND status = 1',
@@ -908,7 +1032,7 @@ class PhysicianAuthController {
         }
       }
 
-      // Validate ownership of selfie (doc_type_id = 2)
+      // Validate ownership of selfie (doc_type_id = 2) FIRST
       const [selfie] = await connection.execute(
         'SELECT * FROM user_uploads WHERE id = ? AND user_id = ? AND user_type = ? AND doc_type_id = 2 AND status = 1',
         [selfie_upload_id, physicianId, 'P']
@@ -916,6 +1040,68 @@ class PhysicianAuthController {
       if (!selfie.length) {
         throw new Error('Invalid selfie upload ID or access denied');
       }
+
+      // Get existing identity documents (doc_type_id = 1) before disabling
+      const [existingIdDocs] = await connection.execute(
+        'SELECT url FROM user_uploads WHERE user_id = ? AND user_type = ? AND doc_type_id = 1 AND status = 1',
+        [physicianId, 'P']
+      );
+
+      // Delete physical files for existing identity documents (excluding the ones being resubmitted)
+      for (const doc of existingIdDocs) {
+        // Don't delete if it's one of the new uploads being submitted
+        if (!identity_document_upload_ids.includes(doc.id)) {
+          const filePath = path.join(__dirname, '../../../uploads', path.basename(doc.url));
+          if (fs.existsSync(filePath)) {
+            try {
+              fs.unlinkSync(filePath);
+            } catch (err) {
+              console.error('Error deleting file:', filePath, err);
+            }
+          }
+        }
+      }
+
+      // Mark existing identity documents as disabled in database (excluding the ones being resubmitted)
+      if (identity_document_upload_ids.length > 0) {
+        const placeholders = identity_document_upload_ids.map(() => '?').join(',');
+        await connection.execute(
+          `UPDATE user_uploads SET status = 0 WHERE user_id = ? AND user_type = ? AND doc_type_id = 1 AND id NOT IN (${placeholders})`,
+          [physicianId, 'P', ...identity_document_upload_ids]
+        );
+      } else {
+        await connection.execute(
+          'UPDATE user_uploads SET status = 0 WHERE user_id = ? AND user_type = ? AND doc_type_id = 1',
+          [physicianId, 'P']
+        );
+      }
+
+      // Get existing selfie (doc_type_id = 2) before disabling
+      const [existingSelfie] = await connection.execute(
+        'SELECT url FROM user_uploads WHERE user_id = ? AND user_type = ? AND doc_type_id = 2 AND status = 1',
+        [physicianId, 'P']
+      );
+
+      // Delete physical file for existing selfie (excluding the one being resubmitted)
+      for (const doc of existingSelfie) {
+        // Don't delete if it's the new selfie being submitted
+        if (doc.id !== selfie_upload_id) {
+          const filePath = path.join(__dirname, '../../../uploads', path.basename(doc.url));
+          if (fs.existsSync(filePath)) {
+            try {
+              fs.unlinkSync(filePath);
+            } catch (err) {
+              console.error('Error deleting file:', filePath, err);
+            }
+          }
+        }
+      }
+
+      // Mark existing selfie as disabled in database (excluding the one being resubmitted)
+      await connection.execute(
+        'UPDATE user_uploads SET status = 0 WHERE user_id = ? AND user_type = ? AND doc_type_id = 2 AND id != ?',
+        [physicianId, 'P', selfie_upload_id]
+      );
 
       // Update identity status to pending
       await connection.execute(
@@ -962,7 +1148,7 @@ class PhysicianAuthController {
         throw new Error('You must agree to all compliance documents');
       }
 
-      // Validate ownership of signature upload (doc_type_id = 7)
+      // Validate ownership of signature upload (doc_type_id = 7) FIRST
       const [signature] = await connection.execute(
         'SELECT * FROM user_uploads WHERE id = ? AND user_id = ? AND user_type = ? AND doc_type_id = 7 AND status = 1',
         [signature_upload_id, physicianId, 'P']
@@ -970,6 +1156,33 @@ class PhysicianAuthController {
       if (!signature.length) {
         throw new Error('Invalid signature upload ID or access denied');
       }
+
+      // Get existing signature uploads (doc_type_id = 7) before disabling
+      const [existingSignatureUploads] = await connection.execute(
+        'SELECT id, url FROM user_uploads WHERE user_id = ? AND user_type = ? AND doc_type_id = 7 AND status = 1',
+        [physicianId, 'P']
+      );
+
+      // Delete physical files for existing signature uploads (excluding the one being resubmitted)
+      for (const doc of existingSignatureUploads) {
+        // Don't delete if it's the new signature being submitted
+        if (doc.id !== signature_upload_id) {
+          const filePath = path.join(__dirname, '../../../uploads', path.basename(doc.url));
+          if (fs.existsSync(filePath)) {
+            try {
+              fs.unlinkSync(filePath);
+            } catch (err) {
+              console.error('Error deleting file:', filePath, err);
+            }
+          }
+        }
+      }
+
+      // Mark existing signature uploads as disabled in database (excluding the one being resubmitted)
+      await connection.execute(
+        'UPDATE user_uploads SET status = 0 WHERE user_id = ? AND user_type = ? AND doc_type_id = 7 AND id != ?',
+        [physicianId, 'P', signature_upload_id]
+      );
 
       // Delete existing compliance documents for this physician
       await connection.execute(

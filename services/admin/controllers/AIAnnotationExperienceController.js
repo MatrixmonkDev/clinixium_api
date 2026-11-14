@@ -4,7 +4,7 @@ import Joi from 'joi';
 class AIAnnotationExperienceController {
   static async getAll(req, res, next) {
     try {
-      const experiences = await AIAnnotationExperience.findAll();
+      const experiences = await AIAnnotationExperience.findAllForAdmin();
       res.status(200).json({
         success: true,
         data: experiences,
@@ -120,6 +120,52 @@ class AIAnnotationExperienceController {
       res.status(200).json({
         success: true,
         message: 'AI annotation experience deleted successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async disable(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const existing = await AIAnnotationExperience.findById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'AI annotation experience not found',
+        });
+      }
+
+      await AIAnnotationExperience.disable(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'AI annotation experience disabled successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async enable(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const existing = await AIAnnotationExperience.findById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'AI annotation experience not found',
+        });
+      }
+
+      await AIAnnotationExperience.enable(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'AI annotation experience enabled successfully',
       });
     } catch (error) {
       next(error);

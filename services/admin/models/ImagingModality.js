@@ -26,6 +26,17 @@ class ImagingModality {
     return rows;
   }
 
+  static async findAllForAdmin() {
+    const query = `
+      SELECT * FROM imaging_modalities
+      WHERE is_active = 1
+      ORDER BY name ASC
+    `;
+
+    const [rows] = await pool.execute(query);
+    return rows;
+  }
+
   static async findById(id) {
     const query = 'SELECT * FROM imaging_modalities WHERE id = ?';
     const [rows] = await pool.execute(query, [id]);
@@ -66,6 +77,16 @@ class ImagingModality {
   static async delete(id) {
     const query = 'DELETE FROM imaging_modalities WHERE id = ?';
     await pool.execute(query, [id]);
+  }
+
+  static async disable(id) {
+    const query = 'UPDATE imaging_modalities SET status = 0, updated_at = ? WHERE id = ?';
+    await pool.execute(query, [getCurrentTimestampString(), id]);
+  }
+
+  static async enable(id) {
+    const query = 'UPDATE imaging_modalities SET status = 1, updated_at = ? WHERE id = ?';
+    await pool.execute(query, [getCurrentTimestampString(), id]);
   }
 }
 

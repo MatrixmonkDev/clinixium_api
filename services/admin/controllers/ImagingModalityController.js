@@ -4,7 +4,7 @@ import Joi from 'joi';
 class ImagingModalityController {
   static async getAll(req, res, next) {
     try {
-      const modalities = await ImagingModality.findAll();
+      const modalities = await ImagingModality.findAllForAdmin();
       res.status(200).json({
         success: true,
         data: modalities,
@@ -120,6 +120,52 @@ class ImagingModalityController {
       res.status(200).json({
         success: true,
         message: 'Imaging modality deleted successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async disable(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const existing = await ImagingModality.findById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'Imaging modality not found',
+        });
+      }
+
+      await ImagingModality.disable(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Imaging modality disabled successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async enable(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const existing = await ImagingModality.findById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'Imaging modality not found',
+        });
+      }
+
+      await ImagingModality.enable(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Imaging modality enabled successfully',
       });
     } catch (error) {
       next(error);

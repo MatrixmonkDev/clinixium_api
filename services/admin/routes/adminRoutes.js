@@ -18,6 +18,9 @@ router.get('/physicians', authMiddleware(['admin']), AdminController.getPhysicia
 router.get('/physicians/:physicianId', authMiddleware(['admin']), AdminController.getPhysicianDetails);
 router.put('/physicians/:physicianId/approve', authMiddleware(['admin']), AdminController.approvePhysician);
 router.get('/developers', authMiddleware(['admin']), AdminController.getDevelopersList);
+router.get('/developers/pending', authMiddleware(['admin']), AdminController.getPendingDevelopers);
+router.get('/developers/:developerId', authMiddleware(['admin']), AdminController.getDeveloperDetails);
+router.put('/developers/:developerId/approve', authMiddleware(['admin']), AdminController.approveDeveloper);
 router.get('/users/:userType/:userId/login-history', authMiddleware(['admin']), AdminController.getUserLoginHistory);
 
 // Onboarding-related routes

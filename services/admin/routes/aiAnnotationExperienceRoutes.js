@@ -9,5 +9,7 @@ router.get('/ai-annotation-experiences/:id', authMiddleware(['admin']), AIAnnota
 router.post('/ai-annotation-experiences', authMiddleware(['admin']), AIAnnotationExperienceController.create);
 router.put('/ai-annotation-experiences/:id', authMiddleware(['admin']), AIAnnotationExperienceController.update);
 router.delete('/ai-annotation-experiences/:id', authMiddleware(['admin']), AIAnnotationExperienceController.delete);
+router.patch('/ai-annotation-experiences/:id/disable', authMiddleware(['admin']), AIAnnotationExperienceController.disable);
+router.patch('/ai-annotation-experiences/:id/enable', authMiddleware(['admin']), AIAnnotationExperienceController.enable);
 
 export default router;

@@ -4,7 +4,7 @@ import Joi from 'joi';
 class MedicalDepartmentController {
   static async getAll(req, res, next) {
     try {
-      const departments = await MedicalDepartment.findAll();
+      const departments = await MedicalDepartment.findAllForAdmin();
       res.status(200).json({
         success: true,
         data: departments,
@@ -120,6 +120,52 @@ class MedicalDepartmentController {
       res.status(200).json({
         success: true,
         message: 'Medical department deleted successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async disable(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const existing = await MedicalDepartment.findById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'Medical department not found',
+        });
+      }
+
+      await MedicalDepartment.disable(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Medical department disabled successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async enable(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const existing = await MedicalDepartment.findById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'Medical department not found',
+        });
+      }
+
+      await MedicalDepartment.enable(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Medical department enabled successfully',
       });
     } catch (error) {
       next(error);

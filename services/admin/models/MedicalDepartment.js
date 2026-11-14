@@ -31,6 +31,22 @@ class MedicalDepartment {
     return rows;
   }
 
+  static async findAllForAdmin() {
+    const query = `
+      SELECT 
+        md.*,
+        COUNT(DISTINCT pd.physician_id) as physician_count
+      FROM medical_departments md
+      LEFT JOIN physician_departments pd ON md.id = pd.medical_department_id AND pd.status = 1
+      WHERE md.is_active = 1
+      GROUP BY md.id
+      ORDER BY md.name ASC
+    `;
+
+    const [rows] = await pool.execute(query);
+    return rows;
+  }
+
   static async findById(id) {
     const query = 'SELECT * FROM medical_departments WHERE id = ?';
     const [rows] = await pool.execute(query, [id]);
@@ -71,6 +87,16 @@ class MedicalDepartment {
   static async delete(id) {
     const query = 'DELETE FROM medical_departments WHERE id = ?';
     await pool.execute(query, [id]);
+  }
+
+  static async disable(id) {
+    const query = 'UPDATE medical_departments SET status = 0, updated_at = ? WHERE id = ?';
+    await pool.execute(query, [getCurrentTimestampString(), id]);
+  }
+
+  static async enable(id) {
+    const query = 'UPDATE medical_departments SET status = 1, updated_at = ? WHERE id = ?';
+    await pool.execute(query, [getCurrentTimestampString(), id]);
   }
 }
 

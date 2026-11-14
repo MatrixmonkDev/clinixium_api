@@ -9,5 +9,7 @@ router.get('/medical-departments/:id', authMiddleware(['admin']), MedicalDepartm
 router.post('/medical-departments', authMiddleware(['admin']), MedicalDepartmentController.create);
 router.put('/medical-departments/:id', authMiddleware(['admin']), MedicalDepartmentController.update);
 router.delete('/medical-departments/:id', authMiddleware(['admin']), MedicalDepartmentController.delete);
+router.patch('/medical-departments/:id/disable', authMiddleware(['admin']), MedicalDepartmentController.disable);
+router.patch('/medical-departments/:id/enable', authMiddleware(['admin']), MedicalDepartmentController.enable);
 
 export default router;

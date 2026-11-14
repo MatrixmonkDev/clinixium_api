@@ -35,6 +35,26 @@ class MedicalCategory {
     return rows;
   }
 
+  static async findAllForAdmin() {
+    const query = `
+      SELECT 
+        mc.*,
+        md.name as department_name,
+        parent.name as parent_name,
+        COUNT(DISTINCT pc.physician_id) as physician_count
+      FROM medical_categories mc
+      LEFT JOIN medical_departments md ON mc.medical_department_id = md.id
+      LEFT JOIN medical_categories parent ON mc.parent_id = parent.id
+      LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
+      WHERE mc.is_active = 1
+      GROUP BY mc.id
+      ORDER BY mc.name ASC
+    `;
+
+    const [rows] = await pool.execute(query);
+    return rows;
+  }
+
   static async findByDepartment(departmentId) {
     const query = `
       SELECT 
@@ -45,6 +65,24 @@ class MedicalCategory {
       LEFT JOIN medical_categories parent ON mc.parent_id = parent.id
       LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
       WHERE mc.medical_department_id = ? AND mc.is_active = 1 AND mc.status = 1 AND mc.parent_id IS NULL
+      GROUP BY mc.id
+      ORDER BY mc.name ASC
+    `;
+
+    const [rows] = await pool.execute(query, [departmentId]);
+    return rows;
+  }
+
+  static async findByDepartmentForAdmin(departmentId) {
+    const query = `
+      SELECT 
+        mc.*,
+        parent.name as parent_name,
+        COUNT(DISTINCT pc.physician_id) as physician_count
+      FROM medical_categories mc
+      LEFT JOIN medical_categories parent ON mc.parent_id = parent.id
+      LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
+      WHERE mc.medical_department_id = ? AND mc.is_active = 1 AND mc.parent_id IS NULL
       GROUP BY mc.id
       ORDER BY mc.name ASC
     `;
@@ -95,6 +133,48 @@ class MedicalCategory {
     return rows;
   }
 
+  static async findByParentIdForAdmin(parentId) {
+    let query;
+    let params;
+
+    if (parentId === null) {
+      query = `
+        SELECT
+          mc.*,
+          md.name as department_name,
+          parent.name as parent_name,
+          COUNT(DISTINCT pc.physician_id) as physician_count
+        FROM medical_categories mc
+        LEFT JOIN medical_departments md ON mc.medical_department_id = md.id
+        LEFT JOIN medical_categories parent ON mc.parent_id = parent.id
+        LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
+        WHERE mc.parent_id IS NULL AND mc.is_active = 1
+        GROUP BY mc.id
+        ORDER BY mc.name ASC
+      `;
+      params = [];
+    } else {
+      query = `
+        SELECT
+          mc.*,
+          md.name as department_name,
+          parent.name as parent_name,
+          COUNT(DISTINCT pc.physician_id) as physician_count
+        FROM medical_categories mc
+        LEFT JOIN medical_departments md ON mc.medical_department_id = md.id
+        LEFT JOIN medical_categories parent ON mc.parent_id = parent.id
+        LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
+        WHERE mc.parent_id = ? AND mc.is_active = 1
+        GROUP BY mc.id
+        ORDER BY mc.name ASC
+      `;
+      params = [parentId];
+    }
+
+    const [rows] = await pool.execute(query, params);
+    return rows;
+  }
+
   static async findChildren(parentId) {
     const query = `
       SELECT 
@@ -103,6 +183,22 @@ class MedicalCategory {
       FROM medical_categories mc
       LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
       WHERE mc.parent_id = ? AND mc.is_active = 1 AND mc.status = 1
+      GROUP BY mc.id
+      ORDER BY mc.name ASC
+    `;
+
+    const [rows] = await pool.execute(query, [parentId]);
+    return rows;
+  }
+
+  static async findChildrenForAdmin(parentId) {
+    const query = `
+      SELECT 
+        mc.*,
+        COUNT(DISTINCT pc.physician_id) as physician_count
+      FROM medical_categories mc
+      LEFT JOIN physician_categories pc ON mc.id = pc.medical_category_id AND pc.status = 1
+      WHERE mc.parent_id = ? AND mc.is_active = 1
       GROUP BY mc.id
       ORDER BY mc.name ASC
     `;
@@ -159,6 +255,16 @@ class MedicalCategory {
   static async delete(id) {
     const query = 'DELETE FROM medical_categories WHERE id = ?';
     await pool.execute(query, [id]);
+  }
+
+  static async disable(id) {
+    const query = 'UPDATE medical_categories SET status = 0, updated_at = ? WHERE id = ?';
+    await pool.execute(query, [getCurrentTimestampString(), id]);
+  }
+
+  static async enable(id) {
+    const query = 'UPDATE medical_categories SET status = 1, updated_at = ? WHERE id = ?';
+    await pool.execute(query, [getCurrentTimestampString(), id]);
   }
 }
 

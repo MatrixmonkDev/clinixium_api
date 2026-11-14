@@ -2,9 +2,9 @@ import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 
 class TwoFactorService {
-  static generateSecret() {
+  static generateSecret(issuer = null) {
     return speakeasy.generateSecret({
-      name: process.env.TWO_FACTOR_ISSUER || 'Clinixium',
+      name: issuer || process.env.TWO_FACTOR_ISSUER || 'Clinixium',
       length: 32,
     });
   }

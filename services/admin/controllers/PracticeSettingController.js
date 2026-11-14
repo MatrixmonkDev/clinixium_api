@@ -4,7 +4,7 @@ import Joi from 'joi';
 class PracticeSettingController {
   static async getAll(req, res, next) {
     try {
-      const settings = await PracticeSetting.findAll();
+      const settings = await PracticeSetting.findAllForAdmin();
       res.status(200).json({
         success: true,
         data: settings,
@@ -120,6 +120,52 @@ class PracticeSettingController {
       res.status(200).json({
         success: true,
         message: 'Practice setting deleted successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async disable(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const existing = await PracticeSetting.findById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'Practice setting not found',
+        });
+      }
+
+      await PracticeSetting.disable(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Practice setting disabled successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async enable(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const existing = await PracticeSetting.findById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'Practice setting not found',
+        });
+      }
+
+      await PracticeSetting.enable(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Practice setting enabled successfully',
       });
     } catch (error) {
       next(error);

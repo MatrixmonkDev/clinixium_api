@@ -12,5 +12,7 @@ router.get('/medical-categories/:id', authMiddleware(['admin']), MedicalCategory
 router.post('/medical-categories', authMiddleware(['admin']), MedicalCategoryController.create);
 router.put('/medical-categories/:id', authMiddleware(['admin']), MedicalCategoryController.update);
 router.delete('/medical-categories/:id', authMiddleware(['admin']), MedicalCategoryController.delete);
+router.patch('/medical-categories/:id/disable', authMiddleware(['admin']), MedicalCategoryController.disable);
+router.patch('/medical-categories/:id/enable', authMiddleware(['admin']), MedicalCategoryController.enable);
 
 export default router;

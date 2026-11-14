@@ -7,20 +7,96 @@ class DeveloperController {
   static async getProfile(req, res, next) {
     try {
       const developerId = req.user.id;
+      const connection = await pool.getConnection();
 
-      const developer = await Developer.getPublicProfile(developerId);
+      try {
+        // Get basic developer profile
+        const developer = await Developer.getPublicProfile(developerId);
 
-      if (!developer) {
-        return res.status(404).json({
-          success: false,
-          message: 'Developer not found',
+        if (!developer) {
+          return res.status(404).json({
+            success: false,
+            message: 'Developer not found',
+          });
+        }
+
+        // Get onboarding data (all 6 steps)
+        // Step 1: Organization Details
+        const [step1Organization] = await connection.execute(
+          `SELECT do.*, cc.name as country_name
+          FROM developer_organizations do
+          LEFT JOIN country_codes cc ON do.country_id = cc.id
+          WHERE do.developer_id = ? AND do.status = 1`,
+          [developerId]
+        );
+
+        // Step 2: Representative Details
+        const [step2Representative] = await connection.execute(
+          `SELECT dr.*, cc.code as country_code, cc.name as country_name
+          FROM developer_representatives dr
+          LEFT JOIN country_codes cc ON dr.country_code_id = cc.id
+          WHERE dr.developer_id = ? AND dr.status = 1`,
+          [developerId]
+        );
+
+        // Step 3: Security (Two-Factor Authentication)
+        const [step3Data] = await connection.execute(
+          'SELECT two_factor_enabled, two_factor_method, two_factor_confirmed_at FROM developer_mst WHERE id = ?',
+          [developerId]
+        );
+
+        // Step 4: Billing Details
+        const [step4Billing] = await connection.execute(
+          `SELECT db.*, cc.name as country_name
+          FROM developer_billing db
+          LEFT JOIN country_codes cc ON db.billing_country_id = cc.id
+          WHERE db.developer_id = ? AND db.status = 1`,
+          [developerId]
+        );
+
+        // Step 5: Agreements
+        const [step5Agreements] = await connection.execute(
+          `SELECT da.*, dt.name as document_name, dt.description as document_description, u.url as signature_url
+          FROM developer_agreements da
+          LEFT JOIN doc_types dt ON da.doc_type_id = dt.id
+          LEFT JOIN user_uploads u ON da.signature_upload_id = u.id AND u.status = 1
+          WHERE da.developer_id = ? AND da.status = 1`,
+          [developerId]
+        );
+
+        // Step 6: Final Completion
+        const [step6Data] = await connection.execute(
+          'SELECT onboarding_completed_at, is_onboard_complete, is_approved FROM developer_mst WHERE id = ?',
+          [developerId]
+        );
+
+        // Build response with full URLs
+        const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+
+        const step5AgreementsWithUrl = step5Agreements.map(doc => ({
+          ...doc,
+          signature_url: doc.signature_url ? `${baseUrl}${doc.signature_url}` : null
+        }));
+
+        res.status(200).json({
+          success: true,
+          data: {
+            ...developer,
+            onboarding: {
+              step1: step1Organization[0] || null,
+              step2: step2Representative[0] || null,
+              step3: step3Data[0] || {},
+              step4: step4Billing[0] || null,
+              step5: {
+                agreements: step5AgreementsWithUrl
+              },
+              step6: step6Data[0] || {}
+            }
+          }
         });
+      } finally {
+        connection.release();
       }
-
-      res.status(200).json({
-        success: true,
-        data: developer,
-      });
     } catch (error) {
       next(error);
     }

@@ -195,7 +195,9 @@ class AdminController {
       let query = `
         SELECT
           id, user_id, user_name, user_mname, user_lname,
-          thumbnail, user_email, insert_date, last_login, status
+          thumbnail, user_email, insert_date, last_login, status,
+          onboarding_step, onboarding_completed_at,
+          is_onboard_complete, is_approved
         FROM developer_mst
         WHERE 1=1
       `;
@@ -556,6 +558,215 @@ class AdminController {
         success: true,
         message: status === '1' ? 'Physician approved successfully' : 'Physician rejected successfully',
         data: physician,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getDeveloperDetails(req, res, next) {
+    try {
+      const { developerId } = req.params;
+      const { include } = req.query; // include = 'onboarding', 'login_history', or 'all'
+      const connection = await pool.getConnection();
+
+      try {
+        const response = {
+          success: true,
+          data: {}
+        };
+
+        // Get developer basic info
+        const [developerInfo] = await connection.execute(
+          'SELECT id, user_id, user_name, user_mname, user_lname, thumbnail, user_email, insert_date, last_login, status, onboarding_step, onboarding_completed_at, is_onboard_complete, is_approved FROM developer_mst WHERE id = ?',
+          [developerId]
+        );
+
+        if (developerInfo.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: 'Developer not found'
+          });
+        }
+
+        const developer = developerInfo[0];
+        if (developer.thumbnail) {
+          const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+          developer.thumbnail = `${baseUrl}${developer.thumbnail}`;
+        }
+        response.data.developer = developer;
+
+        // Include onboarding data if requested
+        if (!include || include === 'onboarding' || include === 'all') {
+          // Step 1: Organization Details
+          const [step1Organization] = await connection.execute(
+            `SELECT do.*, cc.name as country_name
+            FROM developer_organizations do
+            LEFT JOIN country_codes cc ON do.country_id = cc.id
+            WHERE do.developer_id = ? AND do.status = 1`,
+            [developerId]
+          );
+
+          // Step 2: Representative Details
+          const [step2Representative] = await connection.execute(
+            `SELECT dr.*, cc.code as country_code, cc.name as country_name
+            FROM developer_representatives dr
+            LEFT JOIN country_codes cc ON dr.country_code_id = cc.id
+            WHERE dr.developer_id = ? AND dr.status = 1`,
+            [developerId]
+          );
+
+          // Step 3: Security (Two-Factor Authentication)
+          const [step3Data] = await connection.execute(
+            'SELECT two_factor_enabled, two_factor_method, two_factor_confirmed_at FROM developer_mst WHERE id = ?',
+            [developerId]
+          );
+
+          // Step 4: Billing Details
+          const [step4Billing] = await connection.execute(
+            `SELECT db.*, cc.name as country_name
+            FROM developer_billing db
+            LEFT JOIN country_codes cc ON db.billing_country_id = cc.id
+            WHERE db.developer_id = ? AND db.status = 1`,
+            [developerId]
+          );
+
+          // Step 5: Agreements
+          const [step5Agreements] = await connection.execute(
+            `SELECT da.*, dt.name as document_name, dt.description as document_description, u.url as signature_url
+            FROM developer_agreements da
+            LEFT JOIN doc_types dt ON da.doc_type_id = dt.id
+            LEFT JOIN user_uploads u ON da.signature_upload_id = u.id AND u.status = 1
+            WHERE da.developer_id = ? AND da.status = 1`,
+            [developerId]
+          );
+
+          // Step 6: Final Completion
+          const [step6Data] = await connection.execute(
+            'SELECT onboarding_completed_at, is_onboard_complete, is_approved FROM developer_mst WHERE id = ?',
+            [developerId]
+          );
+
+          // Build response with full URLs
+          const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+
+          const step5AgreementsWithUrl = step5Agreements.map(doc => ({
+            ...doc,
+            signature_url: doc.signature_url ? `${baseUrl}${doc.signature_url}` : null
+          }));
+
+          response.data.onboarding = {
+            step1: step1Organization[0] || null,
+            step2: step2Representative[0] || null,
+            step3: step3Data[0] || {},
+            step4: step4Billing[0] || null,
+            step5: {
+              agreements: step5AgreementsWithUrl
+            },
+            step6: step6Data[0] || {}
+          };
+        }
+
+        // Include login history if requested
+        if (!include || include === 'login_history' || include === 'all') {
+          const limit = parseInt(req.query.limit) || 20;
+          const loginHistory = await LoginActivityService.getUserLoginHistory('D', developer.user_id, limit);
+          response.data.login_history = loginHistory;
+        }
+
+        res.status(200).json(response);
+      } finally {
+        connection.release();
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getPendingDevelopers(req, res, next) {
+    try {
+      const { page = 1, limit = 20 } = req.query;
+      const offset = (page - 1) * limit;
+
+      const query = `
+        SELECT
+          id, user_id, user_name, user_mname, user_lname,
+          thumbnail, user_email, insert_date, last_login, status,
+          onboarding_step, onboarding_completed_at,
+          is_onboard_complete, is_approved
+        FROM developer_mst
+        WHERE is_onboard_complete = 1 AND is_approved = 0
+        ORDER BY insert_date DESC LIMIT ? OFFSET ?
+      `;
+
+      const [rows] = await pool.execute(query, [parseInt(limit), offset]);
+
+      // Add full URLs for thumbnails
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      const rowsWithUrls = rows.map(row => {
+        if (row.thumbnail) {
+          return {
+            ...row,
+            thumbnail: `${baseUrl}${row.thumbnail}`
+          };
+        }
+        return row;
+      });
+
+      const [countRows] = await pool.execute(
+        'SELECT COUNT(*) as total FROM developer_mst WHERE is_onboard_complete = 1 AND is_approved = 0'
+      );
+      const total = countRows[0].total;
+
+      res.status(200).json({
+        success: true,
+        data: rowsWithUrls,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async approveDeveloper(req, res, next) {
+    try {
+      const { developerId } = req.params;
+      const { status, rejection_reason } = req.body;
+
+      if (!['1', '2'].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid status. Must be 1 (approve) or 2 (reject)',
+        });
+      }
+
+      const updateData = {
+        status: parseInt(status),
+      };
+
+      if (status === '2') {
+        updateData.rejection_reason = rejection_reason || null;
+        updateData.rejected_at = getCurrentTimestampString();
+        updateData.is_approved = 0;
+      } else {
+        updateData.approved_at = getCurrentTimestampString();
+        updateData.reviewed_by = req.user.id;
+        updateData.is_approved = 1;
+      }
+
+      await Developer.update(developerId, updateData);
+
+      const developer = await Developer.getPublicProfile(developerId);
+
+      res.status(200).json({
+        success: true,
+        message: status === '1' ? 'Developer approved successfully' : 'Developer rejected successfully',
+        data: developer,
       });
     } catch (error) {
       next(error);

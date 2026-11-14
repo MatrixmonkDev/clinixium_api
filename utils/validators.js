@@ -50,6 +50,13 @@ const staffRegisterSchema = Joi.object({
       'string.pattern.base': 'Password must contain uppercase, lowercase, number, and special character',
       'any.required': 'Password is required',
     }),
+  confirm_password: Joi.string()
+    .valid(Joi.ref('password'))
+    .required()
+    .messages({
+      'any.only': 'Passwords do not match',
+      'any.required': 'Confirm password is required',
+    }),
   user_name: Joi.string().min(2).max(100).required().messages({
     'any.required': 'User name is required',
   }),
@@ -131,6 +138,71 @@ const twoFactorVerifySchema = Joi.object({
     'string.length': '2FA code must be 6 digits',
     'any.required': '2FA code is required',
   }),
+});
+
+const resendVerificationEmailSchema = Joi.object({
+  email: Joi.string().email().required().messages({
+    'string.email': 'Please provide a valid email',
+    'any.required': 'Email is required',
+  }),
+});
+
+// Developer Onboarding Step 1: Organization Details
+const developerOnboardingStep1Schema = Joi.object({
+  legal_organization_name: Joi.string().min(2).max(255).allow('', null),
+  organization_type: Joi.string().min(2).max(100).allow('', null),
+  organization_website: Joi.string().uri().allow('', null),
+  business_registration_number: Joi.string().max(100).allow('', null),
+  country_id: Joi.number().integer().allow(null),
+  street_address: Joi.string().min(5).max(255).allow('', null),
+  city: Joi.string().min(2).max(100).allow('', null),
+  state: Joi.string().min(2).max(100).allow('', null),
+  zip_code: Joi.string().min(3).max(20).allow('', null),
+});
+
+// Developer Onboarding Step 2: Representative Details
+const developerOnboardingStep2Schema = Joi.object({
+  first_name: Joi.string().min(2).max(100).allow('', null),
+  last_name: Joi.string().min(2).max(100).allow('', null),
+  email: Joi.string().email().allow('', null),
+  phone_number: Joi.string().max(20).allow('', null),
+  country_code_id: Joi.number().integer().allow(null),
+  role: Joi.string().min(2).max(100).allow('', null),
+});
+
+// Developer Onboarding Step 3: Security (Two-Factor Authentication)
+const developerOnboardingStep3Schema = Joi.object({
+  // Step 3 is only for Two-Factor Authentication setup
+  // No fields needed - just checks if 2FA is enabled
+});
+
+// Developer Onboarding Step 4: Billing Details
+const developerOnboardingStep4Schema = Joi.object({
+  billing_email: Joi.string().email().allow('', null),
+  billing_phone: Joi.string().max(20).allow('', null),
+  billing_address: Joi.string().min(5).max(255).allow('', null),
+  billing_city: Joi.string().min(2).max(100).allow('', null),
+  billing_state: Joi.string().min(2).max(100).allow('', null),
+  billing_zip_code: Joi.string().min(3).max(20).allow('', null),
+  billing_country_id: Joi.number().integer().allow(null),
+  tax_id: Joi.string().max(100).allow('', null),
+});
+
+// Developer Onboarding Step 5: Agreements
+const developerOnboardingStep5Schema = Joi.object({
+  agreed_document_ids: Joi.array().items(Joi.number().integer()).min(1).required().messages({
+    'array.min': 'At least one agreement must be accepted',
+    'any.required': 'Agreed document IDs are required',
+  }),
+  signature_upload_id: Joi.number().integer().required().messages({
+    'any.required': 'Signature upload is required',
+  }),
+});
+
+// Developer Onboarding Step 6: Final Completion
+const developerOnboardingStep6Schema = Joi.object({
+  // Step 6 is only for final submission
+  // No fields needed - just confirms and completes onboarding
 });
 
 const refreshTokenSchema = Joi.object({
@@ -240,6 +312,13 @@ export {
   simpleChangePasswordSchema,
   twoFactorSetupSchema,
   twoFactorVerifySchema,
+  resendVerificationEmailSchema,
+  developerOnboardingStep1Schema,
+  developerOnboardingStep2Schema,
+  developerOnboardingStep3Schema,
+  developerOnboardingStep4Schema,
+  developerOnboardingStep5Schema,
+  developerOnboardingStep6Schema,
   refreshTokenSchema,
   onboardingStep1Schema,
   onboardingStep2Schema,

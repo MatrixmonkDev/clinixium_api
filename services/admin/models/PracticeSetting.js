@@ -26,6 +26,17 @@ class PracticeSetting {
     return rows;
   }
 
+  static async findAllForAdmin() {
+    const query = `
+      SELECT * FROM practice_settings
+      WHERE is_active = 1
+      ORDER BY name ASC
+    `;
+
+    const [rows] = await pool.execute(query);
+    return rows;
+  }
+
   static async findById(id) {
     const query = 'SELECT * FROM practice_settings WHERE id = ?';
     const [rows] = await pool.execute(query, [id]);
@@ -66,6 +77,16 @@ class PracticeSetting {
   static async delete(id) {
     const query = 'DELETE FROM practice_settings WHERE id = ?';
     await pool.execute(query, [id]);
+  }
+
+  static async disable(id) {
+    const query = 'UPDATE practice_settings SET status = 0, updated_at = ? WHERE id = ?';
+    await pool.execute(query, [getCurrentTimestampString(), id]);
+  }
+
+  static async enable(id) {
+    const query = 'UPDATE practice_settings SET status = 1, updated_at = ? WHERE id = ?';
+    await pool.execute(query, [getCurrentTimestampString(), id]);
   }
 }
 

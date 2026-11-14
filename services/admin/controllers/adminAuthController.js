@@ -259,7 +259,17 @@ class AdminAuthController {
     try {
       const adminId = req.user.id;
 
-      const secret = TwoFactorService.generateSecret();
+      const admin = await Admin.findById(adminId);
+      if (!admin) {
+        return res.status(404).json({
+          success: false,
+          message: 'Admin not found',
+        });
+      }
+
+      // Custom issuer with user type and email
+      const issuer = `Clinixium (A: ${admin.user_email})`;
+      const secret = TwoFactorService.generateSecret(issuer);
       const qrCode = await TwoFactorService.generateQRCode(secret);
       const recoveryCodes = TwoFactorService.generateRecoveryCodes();
 
