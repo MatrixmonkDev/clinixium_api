@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import mailjet from 'node-mailjet';
+import EmailTemplate from './models/EmailTemplate.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,13 +13,142 @@ class EmailService {
       process.env.MAILJET_API_KEY,
       process.env.MAILJET_API_SECRET
     );
+    this.templateCache = new Map();
+
+    // Cache shared templates (header, footer, styles)
+    this.sharedTemplates = {
+      header: null,
+      footer: null,
+      styles: null,
+    };
+
+    // Load shared templates on initialization
+    this.loadSharedTemplates();
   }
 
-  async sendPasswordResetEmail(userEmail, userType, token, userName = null) {
+  // Load shared templates (header, footer, styles) from files
+  loadSharedTemplates() {
     try {
-      const resetUrl = this.getResetUrl(userType, token);
-      const emailTemplate = this.getPasswordResetTemplate(resetUrl, userName, userType);
+      const templatesDir = path.join(__dirname, 'email-templates', 'shared');
 
+      this.sharedTemplates.header = fs.readFileSync(
+        path.join(templatesDir, 'header.html'),
+        'utf8'
+      );
+
+      this.sharedTemplates.footer = fs.readFileSync(
+        path.join(templatesDir, 'footer.html'),
+        'utf8'
+      );
+
+      this.sharedTemplates.styles = fs.readFileSync(
+        path.join(templatesDir, 'styles.css'),
+        'utf8'
+      );
+    } catch (error) {
+      console.error('Error loading shared email templates:', error);
+    }
+  }
+
+  // Compose full HTML from header + content + footer
+  composeFullHtml(content, emailTitle) {
+    // Replace {{emailTitle}} in header
+    const headerWithTitle = this.sharedTemplates.header.replace(/{{emailTitle}}/g, emailTitle);
+
+    // Replace {{year}} in footer
+    const currentYear = new Date().getFullYear();
+    const footerWithYear = this.sharedTemplates.footer.replace(/{{year}}/g, currentYear);
+
+    return `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${emailTitle}</title>
+        <style>${this.sharedTemplates.styles}</style>
+      </head>
+      <body>
+        <div class="container">
+          ${headerWithTitle}
+          ${content}
+          ${footerWithYear}
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  // Load template from database with caching
+  async getTemplate(templateKey) {
+    // Check cache first
+    if (this.templateCache.has(templateKey)) {
+      return this.templateCache.get(templateKey);
+    }
+
+    // Load from database
+    try {
+      const template = await EmailTemplate.findByKey(templateKey);
+      if (template) {
+        this.templateCache.set(templateKey, template);
+        return template;
+      }
+    } catch (error) {
+      console.error('Error loading template from database:', error);
+    }
+
+    return null;
+  }
+
+  // Replace variables in template content
+  renderTemplate(content, variables) {
+    let rendered = content;
+    for (const [key, value] of Object.entries(variables)) {
+      const placeholder = `{{${key}}}`;
+      rendered = rendered.replace(new RegExp(placeholder, 'g'), value || '');
+    }
+    return rendered;
+  }
+
+  // Clear template cache (useful when templates are updated)
+  clearTemplateCache(templateKey = null) {
+    if (templateKey) {
+      this.templateCache.delete(templateKey);
+    } else {
+      this.templateCache.clear();
+      // Reload shared templates when full cache is cleared
+      this.loadSharedTemplates();
+    }
+  }
+
+  // Main method to send email using template
+  async sendEmailWithTemplate(templateKey, toEmail, variables) {
+    try {
+      const template = await this.getTemplate(templateKey);
+
+      if (!template) {
+        console.error(`Template not found: ${templateKey}`);
+        return { success: false, error: 'Template not found' };
+      }
+
+      // Add common variables
+      const allVariables = {
+        ...variables,
+        greeting: variables.userName ? `Dear ${variables.userName},` : 'Dear User,',
+      };
+
+      // Render content template (middle part only)
+      const renderedContent = this.renderTemplate(template.html_content, allVariables);
+
+      // Compose full HTML with header and footer
+      const fullHtml = this.composeFullHtml(renderedContent, template.subject);
+
+      // Render text content
+      const renderedText = template.text_content
+        ? this.renderTemplate(template.text_content, allVariables)
+        : null;
+
+      // Send email
       const result = await this.client
         .post('send', { version: 'v3.1' })
         .request({
@@ -30,12 +160,12 @@ class EmailService {
               },
               To: [
                 {
-                  Email: userEmail,
+                  Email: toEmail,
                 },
               ],
-              Subject: 'Reset Your Clinixium Password',
-              HTMLPart: emailTemplate,
-              TextPart: `Reset your password by clicking this link: ${resetUrl}\n\nThis link will expire in 30 minutes.\n\nIf you did not request this password reset, please ignore this email.`,
+              Subject: template.subject,
+              HTMLPart: fullHtml,
+              TextPart: renderedText,
             },
           ],
         });
@@ -47,33 +177,45 @@ class EmailService {
     }
   }
 
+  async sendPasswordResetEmail(userEmail, userType, token, userName = null) {
+    try {
+      const resetUrl = this.getResetUrl(userType, token);
+
+      // Map user type code to template key
+      const templateKeyMap = {
+        'D': 'developer_reset_password',
+        'P': 'physician_reset_password',
+        'A': 'admin_reset_password',
+      };
+      const templateKey = templateKeyMap[userType] || `${userType.toLowerCase()}_reset_password`;
+
+      // Use template system
+      const templateResult = await this.sendEmailWithTemplate(
+        templateKey,
+        userEmail,
+        { userName, userEmail, resetUrl }
+      );
+
+      return templateResult;
+    } catch (error) {
+      console.error('Email sending error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   async sendEmailVerificationEmail(userEmail, token, userName = null) {
     try {
       const verificationUrl = this.getEmailVerificationUrl(token);
-      const emailTemplate = this.getEmailVerificationTemplate(verificationUrl, userName);
+      const templateKey = 'developer_verify_email';
 
-      const result = await this.client
-        .post('send', { version: 'v3.1' })
-        .request({
-          Messages: [
-            {
-              From: {
-                Email: process.env.MAILJET_FROM_EMAIL,
-                Name: process.env.MAILJET_FROM_NAME || 'Clinixium',
-              },
-              To: [
-                {
-                  Email: userEmail,
-                },
-              ],
-              Subject: 'Verify Your Email Address',
-              HTMLPart: emailTemplate,
-              TextPart: `Verify your email by clicking this link: ${verificationUrl}\n\nThis link will expire in 24 hours.\n\nIf you did not create a Clinixium developer account, please ignore this email.`,
-            },
-          ],
-        });
+      // Use template system
+      const templateResult = await this.sendEmailWithTemplate(
+        templateKey,
+        userEmail,
+        { userName, userEmail, verificationUrl }
+      );
 
-      return { success: true, messageId: result.body.Messages[0].MessageID };
+      return templateResult;
     } catch (error) {
       console.error('Email sending error:', error);
       return { success: false, error: error.message };
