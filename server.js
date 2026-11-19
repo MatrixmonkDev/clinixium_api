@@ -12,8 +12,11 @@ import physicianAuthRoutes from './services/physicians/routes/physicianAuthRoute
 import adminRoutes from './services/admin/routes/adminRoutes.js';
 import adminAuthRoutes from './services/admin/routes/adminAuthRoutes.js';
 import adminBlockingRoutes from './services/admin/routes/adminBlockingRoutes.js';
+import formRoutes from './services/admin/routes/formRoutes.js';
 import developerRoutes from './services/developer/routes/developerRoutes.js';
 import developerAuthRoutes from './services/developer/routes/developerAuthRoutes.js';
+import developerFormRoutes from './services/developer/routes/formRoutes.js';
+import developerKasmRoutes from './services/developer/routes/kasmRoutes.js';
 import uploadRoutes from './services/shared/routes/uploadRoutes.js';
 import optionsRoutes from './services/shared/routes/optionsRoutes.js';
 import { testDbConnection } from './config/database.js';
@@ -52,8 +55,11 @@ app.use('/api/physicians', physicianRoutes);
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin', adminBlockingRoutes);
+app.use('/api/admin/forms', formRoutes);
+app.use('/api/developer/kasm', developerKasmRoutes);
 app.use('/api/developer/auth', developerAuthRoutes);
 app.use('/api/developer', developerRoutes);
+app.use('/api/developer/forms', developerFormRoutes);
 app.use('/api', uploadRoutes);
 app.use('/api', optionsRoutes);
 

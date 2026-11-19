@@ -302,6 +302,106 @@ const validate = (schema) => {
   };
 };
 
+// Form Template Validators
+const formTemplateCreateSchema = Joi.object({
+  title: Joi.string().min(3).max(255).required(),
+  description: Joi.string().allow('', null),
+  version: Joi.string().allow('', null),
+  specialty: Joi.string().allow('', null),
+  instructions: Joi.string().allow('', null),
+  estimated_completion_time: Joi.number().integer().allow(null),
+  department_id: Joi.number().integer().allow(null),
+});
+
+const formTemplateUpdateSchema = Joi.object({
+  title: Joi.string().min(3).max(255),
+  description: Joi.string().allow('', null),
+  specialty: Joi.string().allow('', null),
+  instructions: Joi.string().allow('', null),
+  estimated_completion_time: Joi.number().integer().allow(null),
+  department_id: Joi.number().integer().allow(null),
+  change_summary: Joi.string().allow('', null),
+});
+
+const formFieldCreateSchema = Joi.object({
+  field_label: Joi.string().min(2).max(255).required(),
+  field_name: Joi.string().min(2).max(100).required(),
+  field_type: Joi.string().valid('text', 'textarea', 'number', 'email', 'file', 'dropdown', 'radio', 'checkbox', 'date', 'phone').required(),
+  placeholder: Joi.string().allow('', null),
+  sort_order: Joi.number().integer().min(0),
+  is_required: Joi.boolean(),
+  width: Joi.number().integer().min(1).max(12).default(12),
+  min_length: Joi.number().integer().allow(null),
+  max_length: Joi.number().integer().allow(null),
+  min_value: Joi.number().allow(null),
+  max_value: Joi.number().allow(null),
+  pattern: Joi.string().allow('', null),
+  validation_message: Joi.string().allow('', null),
+  allowed_file_types: Joi.string().allow('', null),
+  max_file_size_mb: Joi.number().integer().allow(null),
+  default_value: Joi.string().allow('', null),
+  options: Joi.array().items(
+    Joi.object({
+      option_label: Joi.string().required(),
+      option_value: Joi.string().required(),
+      sort_order: Joi.number().integer().min(0),
+      is_default: Joi.boolean(),
+    })
+  ),
+});
+
+const formFieldUpdateSchema = Joi.object({
+  field_label: Joi.string().min(2).max(255),
+  field_name: Joi.string().min(2).max(100),
+  placeholder: Joi.string().allow('', null),
+  sort_order: Joi.number().integer().min(0),
+  is_required: Joi.boolean(),
+  width: Joi.number().integer().min(1).max(12),
+  min_length: Joi.number().integer().allow(null),
+  max_length: Joi.number().integer().allow(null),
+  min_value: Joi.number().allow(null),
+  max_value: Joi.number().allow(null),
+  pattern: Joi.string().allow('', null),
+  validation_message: Joi.string().allow('', null),
+  allowed_file_types: Joi.string().allow('', null),
+  max_file_size_mb: Joi.number().integer().allow(null),
+  default_value: Joi.string().allow('', null),
+  field_type: Joi.string().valid('text', 'textarea', 'number', 'email', 'file', 'dropdown', 'radio', 'checkbox', 'date', 'phone'),
+  options: Joi.array().items(
+    Joi.object({
+      option_label: Joi.string().required(),
+      option_value: Joi.string().required(),
+      sort_order: Joi.number().integer().min(0),
+      is_default: Joi.boolean(),
+    })
+  ),
+});
+
+const formFieldReorderSchema = Joi.object({
+  field_ids: Joi.array().items(Joi.number().integer()).required(),
+});
+
+const formAssignCategoriesSchema = Joi.object({
+  category_ids: Joi.array().items(Joi.number().integer()).required(),
+});
+
+const formRemoveCategorySchema = Joi.object({
+  category_id: Joi.number().integer().required(),
+});
+
+const formApprovalSchema = Joi.object({
+  rejection_reason: Joi.string().allow('', null),
+});
+
+const formRequestCorrectionSchema = Joi.object({
+  review_notes: Joi.string().required(),
+});
+
+const kasmTestSessionSchema = Joi.object({
+  image_id: Joi.string().required(),
+  user_id: Joi.string().optional(),
+});
+
 export {
   registerSchema,
   loginSchema,
@@ -326,5 +426,15 @@ export {
   onboardingStep4Schema,
   onboardingStep5Schema,
   onboardingStep6Schema,
+  formTemplateCreateSchema,
+  formTemplateUpdateSchema,
+  formFieldCreateSchema,
+  formFieldUpdateSchema,
+  formFieldReorderSchema,
+  formAssignCategoriesSchema,
+  formRemoveCategorySchema,
+  formApprovalSchema,
+  formRequestCorrectionSchema,
+  kasmTestSessionSchema,
   validate,
 };
